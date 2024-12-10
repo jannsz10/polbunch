@@ -75,6 +75,11 @@
 					rename `bin' `z'
 				}
 				
+				//Put bins in e(table)
+				tempname table
+				mkmat `y' `z', matrix(`table')
+				mat colnames `table'= freq `z'
+				
 				//limits option
 				if "`limits'"=="" {
 					loc L=1
@@ -392,8 +397,12 @@
 				ereturn local cmdname "polbunch"
 				ereturn local title 	"Polynomial bunching estimates"
 				ereturn local cmdline 	"polbunch `0'"
-				/*ereturn matrix table=`table'
-				foreach s in `scalarlist' {
+				ereturn matrix table=`table'
+				ereturn local binname "`z'"
+				ereturn scalar bw=`bw'
+				if "`log'"=="log" ereturn scalar log=1
+				else ereturn scalar log=0
+				/*foreach s in `scalarlist' {
 					ereturn local `s'=``s''
 				}*/
 					
