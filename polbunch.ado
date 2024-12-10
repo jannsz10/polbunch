@@ -248,6 +248,7 @@
 			
 				`noisily' nl (`y' = `modstr') [fw=`fw'], init(`init')
 				
+				loc r2=e(r2)
 				varcorrect `y' test, fw(`fw') numbins(`numbins') nl
 				tempname b V
 				mat `b'=e(b)
@@ -266,6 +267,7 @@
 				estadd scalar df_m = 0, replace	
 				estadd matrix beta=., replace
 				estadd scalar F=`F', replace
+				estadd scalar r2=`r2', replace
 				//noi eret di
 				est sto res
 				
@@ -394,6 +396,7 @@
 				ereturn matrix table=`table'
 				ereturn local binname "`z'"
 				ereturn scalar bw=`bw'
+				ereturn scalar r2=`r2'
 				if "`log'"=="log" ereturn scalar log=1
 				else ereturn scalar log=0
 				/*foreach s in `scalarlist' {
@@ -415,8 +418,6 @@
 
 		end
 		
-		
-cap prog drop varcorrect
 program define varcorrect, rclass
 syntax anything,  fw(varname) numbins(real) [nl]
 	
