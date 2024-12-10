@@ -73,6 +73,8 @@
 					gen `bin'=ceil((`z'-`cutoff')/`bw')*`bw'+`cutoff'-`bw'/2					
 					collapse (count) `y'=`z', by(`bin')
 					rename `bin' `z'
+					noi di "`z'"
+					noi two bar `y' `z', barwidth(`bw')
 				}
 				
 				//Put bins in e(table)
@@ -204,8 +206,9 @@
 						else loc init lnshift `=ln(0.1)'
 					}
 				}
-					else {
-						//Initvals if log
+					else { //initvals if log - improve!!
+						if "`positiveshift'"=="" loc init shift 0.1
+						else loc init lnshift `=ln(0.1)'
 					}
 				
 				//specify NL model string
@@ -216,11 +219,6 @@
 					loc init `init' `=_b[_cons]'
 					}
 				else {
-					/*if "`chetty'"=="chetty" {
-						loc zmaxadj `zmax'
-						loc B=`BM'
-						loc lower=`zl'
-					}*/
 					loc zmaxadj `cutoff'*(1+`shift')
 					loc B=0
 					loc lower=`cutoff'
@@ -229,19 +227,17 @@
 						}
 					loc cns (`B')*`bw'
 					forvalues k=1/`polynomial' {
-						loc cns `cns' - ((1+`shift')^`=`k'+1'-1)*({b`k'}/`=`k'+1')*((`cutoff'^`=`k'+1'))
+						loc cns `cns' - ({b`k'}/`=`k'+1')*((`cutoff'*(1+`shift'))^(`=`k'+1')-(`cutoff'^`=`k'+1'))
 					}
 					loc b0 (`cns')/(`cutoff'*`shift')
-					//if "`chetty'"=="chetty" loc modstr (`b0')/(1+(`varlist'>`cutoff')*exp({lnshift}))
-					if "`log'"=="log" loc modstr `b0'
-					else loc modstr (`b0')*(1+`shift')^(`z'>`cutoff')
+					loc modstr `b0'
+					//else loc modstr (`b0')*(1+`shift')^(`z'>`cutoff')
 					
 			}
 		
 				tokenize `names'
 				forvalues k=1/`polynomial' {
-					//if "`chetty'"=="chetty" loc modstr `modstr' +({b`k'}*`z'^`k')/(1+(`z'>`cutoff')*exp({lnshift}))
-					if "`log'"=="" loc modstr `modstr' +{b`k'}*`z'^`k'*(1+`shift')^((`z'>`cutoff')*`=`k'+1')
+					if "`log'"=="" loc modstr `modstr' +{b`k'}*(`z'^`k')*(1+`shift')^((`z'>`cutoff')*`=`k'+1')
 					else loc modstr `modstr' +{b`k'}*(`z'+(`z'>`cutoff')*ln(1+`shift'))^`k'
 					loc init `init' b`k' `=_b[0.`dum'#``k'']'
 					}
@@ -284,11 +280,12 @@
 				loc aic=r(S)[1,5]
 				
 				//Compute transformations of interest using nlcom
-				loc shift=subinstr("`shift'","{lnshift}","_b[/lnshift]",.)
-				loc shift=subinstr("`shift'","{shift}","_b[/shift]",.)
+
 				if "`transform'"!="notransform" {
+					if "`positiveshift'"!="" loc shift=subinstr("`shift'","{lnshift}","_b[/lnshift]",.)
+					else loc shift=subinstr("`shift'","{shift}","_b[/shift]",.)
 					forvalues k=1/`=`polynomial'' {
-					loc nlcom `nlcom' (b`k':_b[/b`k'])
+						loc nlcom `nlcom' (b`k':_b[/b`k'])
 				}
 		
 				//if "`intconstraint'"=="" {
@@ -310,19 +307,18 @@
 					else {
 						loc str _b[/b`k']
 						if (`polynomial'>`k') {
-							forvalues n=1/`=`polynomial'-`k'' {
-							loc str `str' +_b[/b`n']*comb(`n'+`k',`n')*(exp(_b[/lne])*`e'^`n')
+							forvalues n=`=`k'+1'/`=`polynomial'' {
+							loc str `str' +_b[/b`n']*comb(`n'+`k',`n')*ln(1+`shift')^`n'
 						}
 						}
 					loc nlcom `nlcom' (g`k': `str')
-					
 					}
 				}
 				if "`log'"=="" loc nlcom `nlcom' (g0: (`b0')*(1+`shift')) 
 				else {
 					loc str `b0'
 					forvalues n=1/`=`polynomial'' {
-							loc str `str' +_b[/b`n']*(1+`shift')^`n')
+							loc str `str' +_b[/b`n']*ln(1+`shift')^`n'
 						}
 						loc nlcom `nlcom' (g0: `str')
 				}
