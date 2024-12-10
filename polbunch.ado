@@ -48,7 +48,7 @@
 					gen `tmp'=`z'-`z'[_n-1]
 					su `tmp'
 					if r(Var)!=0 {
-						noi di as error "Bandwidth differs in pre-binnd data"
+						noi di as error "Bandwidth differs in pre-binned data"
 						exit 301
 					}
 					else loc bw=r(mean)
@@ -73,8 +73,6 @@
 					gen `bin'=ceil((`z'-`cutoff')/`bw')*`bw'+`cutoff'-`bw'/2					
 					collapse (count) `y'=`z', by(`bin')
 					rename `bin' `z'
-					noi di "`cutoff'"
-					noi two bar `y' `z', barwidth(`bw')
 				}
 				
 				//Put bins in e(table)
