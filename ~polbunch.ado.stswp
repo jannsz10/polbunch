@@ -18,6 +18,7 @@
 			initvals(string) ///
 			notransform ///
 			positiveshift ///
+			nozero ///
 			]
 			
 			
@@ -73,6 +74,19 @@
 					gen `bin'=ceil((`z'-`cutoff')/`bw')*`bw'+`cutoff'-`bw'/2					
 					collapse (count) `y'=`z', by(`bin')
 					rename `bin' `z'
+					
+					/*
+					//add empty bins!
+					if "`zero'"!="nozero"  {
+						tempname int
+						gen float `int'=round((`z'+`bw'/2)/`bw')
+						tsset `int'
+						tsfill
+						replace `z'=`int'*`bw'-`bw'/2 if `z'==.
+						replace `y'=0 if `z'==.
+						drop `int'
+					}
+					*/
 				}
 				
 				//Put bins in e(table)
@@ -127,7 +141,7 @@
 				//expand data & gen dummies
 				count
 				loc numbins=r(N)
-				expand 2, gen(`dupe')
+				expand 2 if `y'>0, gen(`dupe')
 				gen `fw'=`y' if `dupe'==0
 				replace `fw'=`N'-`y' if `dupe'==1
 				replace `y'=`N' if `dupe'==0
@@ -213,30 +227,27 @@
 				if "`positiveshift'"=="positiveshift" loc shift exp({lnshift})
 				else loc shift {shift}
 				if "`intconstraint'"=="nointconstraint" {
-					loc modstr {b0}
+					loc b0 {b0}
 					loc init `init' `=_b[_cons]'
 					}
 				else {
-					loc zmaxadj `cutoff'*(1+`shift')
 					loc B=0
-					loc lower=`cutoff'
 					forvalues b=1/`=`H'+`L'' {
 						loc B `B'+{bunch`b'}
 						}
 					loc cns (`B')*`bw'
 					forvalues k=1/`polynomial' {
-						loc cns `cns' - ({b`k'}/`=`k'+1')*((`cutoff'*(1+`shift'))^(`=`k'+1')-(`cutoff'^`=`k'+1'))
+						loc cns `cns' - (((`cutoff'*(1+`shift'))^(`=`k'+1')-`cutoff'^`=`k'+1')*({b`k'}/`=`k'+1'))
 					}
 					loc b0 (`cns')/(`cutoff'*`shift')
-					loc modstr `b0'
-					//else loc modstr (`b0')*(1+`shift')^(`z'>`cutoff')
-					
-			}
+				}
+				if "`log'"=="" loc modstr (`b0')*(1+`shift')^(`z'>`cutoff')
+				else loc modstr `b0'
 		
 				tokenize `names'
 				forvalues k=1/`polynomial' {
-					if "`log'"=="" loc modstr `modstr' +{b`k'}*(`z'^`k')*(1+`shift')^((`z'>`cutoff')*`=`k'+1')
-					else loc modstr `modstr' +{b`k'}*(`z'+(`z'>`cutoff')*ln(1+`shift'))^`k'
+					if "`log'"=="" loc modstr `modstr' +{b`k'}*(`z'^`k') * (1+`shift')^((`z'>`cutoff')*`=`k'+1')
+					else loc modstr `modstr' + {b`k'}*((`z'+(`z'>`cutoff')*ln(1+`shift'))^`k')
 					loc init `init' b`k' `=_b[0.`dum'#``k'']'
 					}
 				
@@ -280,7 +291,6 @@
 				loc aic=r(S)[1,5]
 				
 				//Compute transformations of interest using nlcom
-
 				if "`transform'"!="notransform" {
 					if "`positiveshift'"!="" loc shift=subinstr("`shift'","{lnshift}","_b[/lnshift]",.)
 					else loc shift=subinstr("`shift'","{shift}","_b[/shift]",.)
@@ -425,15 +435,19 @@ syntax anything,  fw(varname) numbins(real) [nl]
 		gettoken y anything: anything
 		tempvar res
 		tempname g V
+		su `fw' in 1/`numbins'
+		loc N=r(sum)
+		loc k=e(df_m)
+		
 		if "`nl'"=="nl" {
 			predictnl `res'=predict() in 1/`=`numbins'', g(`g')
-			replace `res'=-`res'
-			mata: st_matrix("`V'",varcorrect(st_data((1,`=`numbins''),"`g'*"),st_data((1,`=`numbins''),"`fw'"),st_data((1,`=`numbins''),"`res'"),0))
+			replace `res'=-sqrt((`N'/(`N'-1))*((`N'*`numbins'-1)/(`N'*`numbins'-`k')))*`res' //small sample adj
+			mata: st_matrix("`V'",varcorrect(st_data((1,`=`numbins''),"`g'*"),st_data((1,`=`numbins''),"`fw'"),st_data((1,`=`numbins''),"`res'"),0,`=sqrt((`N'/(`N'-1))*((`N'*`numbins'-1)/(`N'*`numbins'-`k')))'))
 			}
 		else {
 			predict `res' in 1/`numbins'
-			replace `res'=-`res'
-			mata: st_matrix("`V'",varcorrect(st_data((1,`=`numbins''),"`anything'"),st_data((1,`=`numbins''),"`fw'"),st_data((1,`=`numbins''),"`res'"),1))
+			replace `res'=-sqrt((`N'/(`N'-1))*((`N'*`numbins'-1)/(`N'*`numbins'-`k')))*`res' //small sample adj
+			mata: st_matrix("`V'",varcorrect(st_data((1,`=`numbins''),"`anything'"),st_data((1,`=`numbins''),"`fw'"),st_data((1,`=`numbins''),"`res'"),1,`=sqrt((`N'/(`N'-1))*((`N'*`numbins'-1)/(`N'*`numbins'-`k')))'))
 		}
 		return matrix V=`V'
 	}
@@ -441,16 +455,16 @@ syntax anything,  fw(varname) numbins(real) [nl]
 
 mata:
 	
-function varcorrect(real matrix X, real matrix fw, real matrix e, real scalar addcons)
+function varcorrect(real matrix X, real matrix fw, real matrix e, real scalar addcons, real scalar smallsample)
 				{
 				B=length(fw)
 				N=sum(fw)
 				if (addcons==1) X=X,J(rows(X),1,1)
 				meat=0
 				for (i=1; i<=B; i++) {
-					e[i]=e[i]+N
+					e[i]=e[i]+N*smallsample
 					meat=meat:+fw[i]:*(X' * e * e' * X)
-					e[i]=e[i]-N
+					e[i]=e[i]-N*smallsample
 				}
 				return(invsym(quadcross(X,X):*N)*meat*invsym(quadcross(X,X):*N))
 				}
