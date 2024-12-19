@@ -16,7 +16,7 @@
 			t1(numlist min=1 max=1  >=0 <=1) ///
 			POLynomial(integer 7) ///
 			NOIsily ///
-			model(integer 3) /// Specify model - 3 = theoretically consistent efficient model, 2 = chetty, 1 = no adjustment, 0=data to the left only
+			estimator(integer 3) /// Specify estimator - 3 = theoretically consistent efficient estimator, 2 = chetty, 1 = no adjustment, 0=data to the left only
 			nodrop ///
 			bootstrap(integer 200) ///
 			initvals(string) ///
@@ -28,8 +28,8 @@
 			]
 			
 			quietly {
-				if !inrange(`model',0,3) {
-						noi di as error "Option model can take only values 1 (using data to the left only), 2 (no adjustment), 2 (Chetty et. al. adjustment) or 3 (theoretically consistent and efficient estimator)"
+				if !inrange(`estimator',0,3) {
+						noi di as error "Option estimator can take only values 1 (using data to the left only), 2 (no adjustment), 2 (Chetty et. al. adjustment) or 3 (theoretically consistent and efficient estimator)"
 						exit 301
 				}
 				tempvar touse
@@ -134,9 +134,43 @@
 				replace `bunch'=0 if `bunch'==.
 				count
 				loc numbins=r(N)
+				
+				//Evaluate OVB
+				loc nmiss=1
+				while `nmiss'>0 {
+					_rmcoll `y' 0.`dum'#(`rhsvars') 1.`dum'#(`rhsvars') 1.`dum' b0.`bunch'
+					loc nmiss=strpos("`=r(varlist)'","o.")>0
+					if `nmiss'>0 {
+						loc note note
+						loc polynomial=`polynomial'-1
+						if `polynomial'==0 {
+							noi di in red "Omitted variable problems."
+							exit 301
+							}
+						
+						//NEW NAMES
+						loc coleq0 
+						loc coleq1 
+						forvalues i=1/`polynomial' { 
+							if `i'==1 loc rhsvars  c.`z'
+							else loc rhsvars `rhsvars'##c.`z'
+							loc coleq0 `coleq0' h0
+							loc coleq1 `coleq1' h1
+						}
+				
+						loc coleq0 `coleq0' h0
+						loc coleq1 `coleq1' h1
+						
+						fvexpand `rhsvars'
+						loc names `r(varlist)' _cons
+						}
+					}
+				if "`note'"=="note" {
+					noi di as text "Note: Polynomial order lowered to `polynomial' because of multicollinearity problems with the specified polynomial."
+				}
 					
 				//ESTIMATE UNRESTRICTED linear MODEL AS benchmark
-				reg `y' 0.`dum'#(`rhsvars') 1.`dum'#(`rhsvars') 1.`dum' b0.`bunch'
+				`noisily' reg `y' 0.`dum'#(`rhsvars') 1.`dum'#(`rhsvars') 1.`dum' b0.`bunch'
 				loc df_m_u=e(df_m)+1
 				tempvar pred rss
 				predict double `pred'
@@ -178,44 +212,44 @@
 					loc B `B'+{bunch`b'}
 					}
 				loc cns (`B')*`bw'
-				if `model'!=2 {
+				if `estimator'!=2 {
 					forvalues k=1/`polynomial' {
 						if "`log'"=="" loc cns `cns' - (((`cutoff'*(1+`shift'))^(`=`k'+1')-`cutoff'^`=`k'+1')*({b`k'}/`=`k'+1'))
-						else loc cns `cns' - (((`cutoff'+`shift')^(`=`k'+1')-`cutoff'^`=`k'+1')*({b`k'}/`=`k'+1'))
+						else loc cns `cns' - (((`cutoff'+ln(1+`shift'))^(`=`k'+1')-`cutoff'^`=`k'+1')*({b`k'}/`=`k'+1'))
 						}
 					if "`log'"=="" loc b0 (`cns')/(`cutoff'*`shift')
-					else loc b0 (`cns')/`shift'
+					else loc b0 (`cns')/ln(1+`shift')
 				}
 				else {
+					loc cns (`cns'/`shift')
 					su `z'
-					loc zmax=r(max)+`bw'/2
-					loc cns (`cns'/`shift')					
+					loc zmax=r(max)+`bw'/2				
 					forvalues k=1/`polynomial' {
-						loc cns `cns' - ({b`k'}/`=`k'+1') *(`zmax'^`=`k'+1'-`cutoff'^`=`k'+1')
+						loc cns `cns' - ({b`k'}/`=`k'+1')*(`zmax'^`=`k'+1'-`cutoff'^`=`k'+1')
 					}
 				loc b0 (`cns')/(`zmax'-`cutoff')
 				}
 				
-				if `model'==0 loc modstr `b0'*(`z'<=`cutoff') + {g0}*(`z'>`cutoff')
-				else if inlist(`model',1,2)|(`model'==3&"`log'"=="log") loc modstr `b0'
+				if `estimator'==0 loc modstr `b0'*(`z'<=`cutoff') + {g0}*(`z'>`cutoff')
+				else if inlist(`estimator',1,2)|(`estimator'==3&"`log'"=="log") loc modstr `b0'
 				else loc modstr (`b0')*(1+`shift')^(`z'>`cutoff')
 		
 				/// b1-bK parameters
 				tokenize `names'
-				if `model'==0 {
+				if `estimator'==0 {
 					forvalues k=1/`polynomial' {
 						loc modstr `modstr' + {b`k'}*(`z'<=`cutoff')*`z'^`k'+{g`k'}*(`z'>`cutoff')*`z'^`k'
 						loc init `init' b`k' `=_b[0.`dum'#``k'']' g`k' `=_b[1.`dum'#``k'']'
 					}
 					loc init `init' g0 `=_b[1.`dum']'
 				}
-				else if inlist(`model',1,2) {
+				else if inlist(`estimator',1,2) {
 					forvalues k=1/`polynomial' {
 						loc modstr `modstr' + {b`k'}*`z'^`k'
 						loc init `init' b`k' `=_b[0.`dum'#``k'']'
 						}
 				}
-				else if `model' == 3 {
+				else if `estimator' == 3 {
 					forvalues k=1/`polynomial' {
 						if "`log'"=="" loc modstr `modstr' +{b`k'}*(`z'^`k') * (1+`shift')^((`z'>`cutoff')*`=`k'+1')
 						else loc modstr `modstr' + {b`k'}*((`z'+(`z'>`cutoff')*ln(1+`shift'))^`k')
@@ -223,14 +257,16 @@
 						}
 				}
 				
+
+				if `estimator'==2 loc modstr (1/(1+exp({lnshift})*(`z'>`cutoff')))*(`modstr')
+				
 				// bunch  region dummies
 				forvalues b=1/`=`H'+`L'' {
 					loc modstr `modstr' + {bunch`b'}*`b'.`bunch'
 					loc init `init' bunch`b' `=_b[`b'.`bunch']'
 					}
-				
-				if `model'==2 loc modstr (1/(1+exp({lnshift})))*(`modstr')
-			
+					
+
 				`noisily' nl (`y' = `modstr'), init(`init')
 
 				************* Compute expressions for transformations ***********************
@@ -255,9 +291,9 @@
 				
 				//gk parameters
 				forvalues k=1/`=`polynomial'' {
-					if `model'==0 loc nlcom `nlcom' (_b[/g`k'])
-					else if `model'==1 loc nlcom `nlcom' (_b[/b`k'])
-					else if `model'==2 loc nlcom `nlcom' (_b[/b`k']/(1+`shift'))
+					if `estimator'==0 loc nlcom `nlcom' (_b[/g`k'])
+					else if `estimator'==1 loc nlcom `nlcom' (_b[/b`k'])
+					else if `estimator'==2 loc nlcom `nlcom' (_b[/b`k']/(1+`shift'))
 					else if "`log'"=="" loc nlcom `nlcom' (_b[/b`k']*(1+`shift')^(`=`k'+1'))
 					else {
 							loc str _b[/b`k']
@@ -271,9 +307,9 @@
 					}
 				
 				//g0
-				if `model'==0 loc nlcom `nlcom' (_b[/g0])
-				else if `model'==1 loc nlcom `nlcom' (`b0')
-				else if `model'==2 loc nlcom `nlcom' ((`b0')/(1+`shift'))
+				if `estimator'==0 loc nlcom `nlcom' (_b[/g0])
+				else if `estimator'==1 loc nlcom `nlcom' (`b0')
+				else if `estimator'==2 loc nlcom `nlcom' ((`b0')/(1+`shift'))
 				else if "`log'"=="" loc nlcom `nlcom' ((`b0')*(1+`shift')) 
 				else {
 					loc str `b0'
@@ -299,7 +335,7 @@
 				}
 				loc nlcom `nlcom' ((`B')/(`m')) //excess mass
 				
-				if `model'!=2 {
+				if `estimator'!=2 {
 					//response of marginal buncher
 					if "`log'"!="log" loc nlcom `nlcom' (`shift'*`cutoff')
 					else loc nlcom `nlcom' (ln((1+`shift')*`cutoff')-ln(`cutoff'))
@@ -324,10 +360,10 @@
 					mat `V'=r(V)
 					if "`transform'"!="notransform" {
 						ereturn repost V=`V'
-						nlcom `nlcom'
+						`noisily' nlcom `nlcom'
 						mat `b'=r(b)
 						mat `V'=r(V)
-						if `model'==2 { //compute marginal response and elasticity from solving integration constraint
+						if `estimator'==2 { //compute marginal response and elasticity from solving integration constraint
 							tempname h0
 							mat `h0'=`b'
 							mat `h0'=`b'[1,1..`polynomial'],`b'[1,`=`polynomial'+1']
@@ -355,7 +391,7 @@
 						loc str `nlcom'
 						nlcom `nlcom'
 						mat `b'=r(b)
-						if `model'==2 { //compute marginal response and elasticity from solving integration constraint
+						if `estimator'==2 { //compute marginal response and elasticity from solving integration constraint
 							tempname h0
 							mat `h0'=`b'
 							mat `h0'=`b'[1,1..`polynomial'],`b'[1,`=`polynomial'+1']
@@ -366,13 +402,13 @@
 						}
 					}
 					else loc str
-					noi di "Performing bootstrap repetitions..."
+					noi di as text "Performing bootstrap repetitions..."
 					simulate, reps(`bootreps'): bssim, modstr(`modstr') nl p(`p') estopts(init(`init')) obs(`N') nlcom(`str') mod2(`mod2')
 					corr _all, cov
 					mat `V'=r(C)
 				}
 				
-				if `model'>0 {
+				if `estimator'>0 {
 					loc F=((`rss_r'-`rss_u')/(`df_m_u'-`df_m_r'))/(`rss_u'/(`stackN'-`df_m_u'))		
 					loc p=Ftail(`df_m_u'-`df_m_r',`stackN'-`df_m_u',`F')
 				}
@@ -407,12 +443,11 @@
 					mat roweq `V'=`coleq0' `coleq1' bunching
 				}
 				
-				
 				restore
 				
 				//return results
 				eret post `b' `V', esample(`touse') obs(`N')
-				if `model'>0 {
+				if `estimator'>0 {
 					estadd scalar F_mod=`F'
 					estadd scalar p_mod=`p'
 					estadd scalar F_df1=`=`polynomial'+1'
@@ -443,12 +478,12 @@
 					di _newline
 					di "`e(title)'"
 					eret di
-					if `model'>0 {
+					if `estimator'>0 {
 						di "F-test of model assumptions: {col 42}F(`=`polynomial'+1',`=`stackN'-`df_m_u'') test statistic {col 72}`: di %12.4f `F''"
 						di "{col 42}p-value {col 72}`: di %12.4f `p''"
 						di "{hline 83}"
 						}
-					if inlist(`model',1,2) {
+					if inlist(`estimator',1,2) {
 						di "Note: Estimator is not consistent with iso-elastic labor supply model and estimates are biased."
 					}
 					}
@@ -560,39 +595,3 @@ program bssim, eclass
 	else mat `b'=e(b)
 	ereturn post `b', obs(`obs')
 	end
-	
-	
-					/*
-				loc nmiss=1
-				while `nmiss'>0 {
-					_rmcoll `y' 0.`dum'#(`rhsvars') 1.`dum'#(`rhsvars') 1.`dum' b0.`bunch' [fw=`fw']
-					loc nmiss=strpos("`=r(varlist)'","o.")>0
-					if `nmiss'>0 {
-						loc note note
-						loc polynomial=`polynomial'-1
-						if `polynomial'==0 {
-							noi di in red "Omitted variable problems."
-							exit 301
-							}
-						
-						//NEW NAMES
-						loc coleq0 
-						loc coleq1 
-						forvalues i=1/`polynomial' { 
-							if `i'==1 loc rhsvars  c.`z'
-							else loc rhsvars `rhsvars'##c.`z'
-							loc coleq0 `coleq0' h0
-							loc coleq1 `coleq1' h1
-						}
-				
-						loc coleq0 `coleq0' h0
-						loc coleq1 `coleq1' h1
-						
-						fvexpand `rhsvars'
-						loc names `r(varlist)' _cons
-						}
-					}
-				if "`note'"=="note" {
-					noi di as text "Note: Polynomial order lowered to `polynomial' because of multicollinearity problems with the specified polynomial."
-				}
-				*/

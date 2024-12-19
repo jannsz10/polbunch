@@ -4,7 +4,7 @@
 cap prog drop polbunchplot
 	program polbunchplot
 	
-	syntax [name], [graph_opts(string) noci nostar limit(numlist min=2 max=2) log]
+	syntax [name], [graph_opts(string) noci nostar limit(numlist min=2 max=2) log truncate]
 	quietly {
 		if "`name'"!="" est restore `name'
 		if "`=e(cmdname)'"!="polbunch" {
@@ -49,6 +49,10 @@ cap prog drop polbunchplot
 			loc h1plot `h1plot' +`h1'[1,`i']*x^`i' 
 		}
 		
+		if "`truncate'"!="" {
+			su freq if !inrange(`=e(binname)',`=e(lower_limit)',`=e(upper_limit)')
+			replace freq=r(max) if freq>r(max)
+		}
 		if "`log'"=="log" loc yscale yscale(log)
 		if e(upper_limit)>e(cutoff) loc zhline xline(`=e(upper_limit)', lcolor(black) lpattern(dash))
 		twoway 	(bar freq `=e(binname)', barwidth(`=e(bw)') color(navy%50)) ///
