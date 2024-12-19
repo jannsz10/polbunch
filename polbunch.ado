@@ -279,8 +279,8 @@
 				}
 		
 				//b0
-					loc b0=subinstr("`b0'","{lnshift}","_b[/lnshift]",.)
-					loc b0=subinstr("`b0'","{shift}","_b[/shift]",.)
+					if "`positiveshift'"!="nopositiveshift" loc b0=subinstr("`b0'","{lnshift}","_b[/lnshift]",.)
+					else loc b0=subinstr("`b0'","{shift}","_b[/shift]",.)
 					forvalues k=1/`=`polynomial'' {
 						loc b0=subinstr("`b0'","{b`k'}","_b[/b`k']",.)
 					}
@@ -299,7 +299,7 @@
 							loc str _b[/b`k']
 							if (`polynomial'>`k') {
 								forvalues n=`=`k'+1'/`=`polynomial'' {
-								loc str `str' +_b[/b`n']*comb(`n'+`k',`n')*ln(1+`shift')^`n'
+									loc str `str' +_b[/b`n']*comb(`n',`k')*ln(1+`shift')^(`n'-`k')
 								}
 							}
 						loc nlcom `nlcom' (`str')
@@ -397,13 +397,16 @@
 							mat `h0'=`b'[1,1..`polynomial'],`b'[1,`=`polynomial'+1']
 							mata: st_numscalar("eresp",eresp(`=`B'',`cutoff',st_matrix("`h0'"),`bw'))
 							mat `b'=`b',eresp
-							if "`t0'"!=""&"`t1'"!="" mat `b'=`b',`=ln(eresp/`cutoff'+1)/(ln(1-`t0')-ln(1-`t1'))'
+							if "`t0'"!=""&"`t1'"!="" {
+								if "`log'"=="" mat `b'=`b',`=ln(eresp/`cutoff'+1)/(ln(1-`t0')-ln(1-`t1'))'
+								else mat `b'=`b',`=ln(exp(eresp+`cutoff')/exp(`cutoff'))/(ln(1-`t0')-ln(1-`t1'))'
+								}
 							loc mod2 `polynomial' `B' `cutoff' `bw' `t0' `t1'
 						}
 					}
 					else loc str
 					noi di as text "Performing bootstrap repetitions..."
-					simulate, reps(`bootreps'): bssim, modstr(`modstr') nl p(`p') estopts(init(`init')) obs(`N') nlcom(`str') mod2(`mod2')
+					simulate, reps(`bootreps'): bssim, modstr(`modstr') nl p(`p') estopts(init(`init')) obs(`N') nlcom(`str') mod2(`mod2') log
 					corr _all, cov
 					mat `V'=r(C)
 				}
@@ -558,7 +561,7 @@ end
 
 // Helper program for the binned bootstrap
 program bssim, eclass
-	syntax , modstr(string) p(varname) obs(real) estopts(string) [nl nlcom(string) mod2(string)]
+	syntax , modstr(string) p(varname) obs(real) estopts(string) [nl nlcom(string) mod2(string) log]
 	preserve
 	tempvar y
 	
@@ -589,7 +592,9 @@ program bssim, eclass
 			mat `h0'=`b'[1,1..`1'],`b'[1,`=`1'+1']
 			mata: st_numscalar("eresp",eresp(`=`2'',`3',st_matrix("`h0'"),`4'))
 			mat `b'=`b',eresp
-			if "`5'"!=""&"`6'"!="" mat `b'=`b',`=ln(eresp/`3'+1)/(ln(1-`5')-ln(1-`6'))'						
+			if "`5'"!=""&"`6'"!="" {
+				if "`log'"="" mat `b'=`b',`=ln(eresp/`3'+1)/(ln(1-`5')-ln(1-`6'))'						
+				else mat `b'=`b',`=ln((exp(eresp+`3'))/exp(`3'))/(ln(1-`5')-ln(1-`6'))'	
 		}
 	}
 	else mat `b'=e(b)
