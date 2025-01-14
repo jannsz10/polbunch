@@ -3,18 +3,10 @@ program polbunchsim, rclass
 	 {
 	polbunchgendata , distribution(`distribution') obs(`obs') zstar(`zstar') el(`el') t0(`t0') t1(`t1') `log'	
 	`noisily' polbunch z, cutoff(`zstar') pol(`pol') bw(`bw') t0(`t0') t1(`t1') `log' `transform' `noisily' `positiveshift' estimator(`estimator') bootreps(`bootreps')
-	if "`test'"!="notest" {
-	if "`transform'"=="notransform" {
-		nlcom (elasticity: ln(1+exp(_b[shift:lnshift]))/(ln(1-`t0')-ln(1-`t1'))), post
-		return scalar e=_b[elasticity]
-		test elasticity=`el'
-		return scalar p=r(p)
-	}
-	else {
 		return scalar e=_b[bunching:elasticity]
-		test elasticity]=`el'
-		return scalar p=r(p)
-	}
-	}
+		if `bootreps'>0 {
+			test elasticity=`el'
+			return scalar p=r(p)
+		}
 	}
 end

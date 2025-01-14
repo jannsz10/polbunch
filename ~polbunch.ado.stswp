@@ -31,6 +31,7 @@
 			bootreps(integer 1) ///
 			log ///
 			constant ///
+			nodots /// suppress dots for bootstrap progress
 			]
 			
 			quietly {
@@ -139,7 +140,8 @@
 				
 				//gen dummies
 				tempvar fw dupe dum dum2 bunch
-				gen `dum'=`z'>`cutoff'
+				gen byte `dum'=`z'>`cutoff'
+				gen byte `dum2'=`dum'
 				egen `bunch'=group(`z') if inrange(`z',`zL',`zH')
 				replace `bunch'=0 if `bunch'==.
 				count
@@ -180,7 +182,7 @@
 				}
 					
 				//ESTIMATE UNRESTRICTED MODEL (as benchmark or main model if estimator==0)
-				`noisily' reg `y' 0.`dum'#(`rhsvars') 0.`dum' 1.`dum'#(`rhsvars') 1.`dum' b0.`bunch', nocons
+				`noisily' reg `y' 0.`dum'#(`rhsvars') 0.`dum' 1.`dum2'#(`rhsvars') 1.`dum2' b0.`bunch', hascons
 				loc df_m_u=e(df_m)
 				tempvar pred rss
 				predict double `pred'
@@ -190,40 +192,15 @@
 				
 				if `bootreps'>1 {
 					tempname p
-					gen double `p'=`y'/`N'
+					gen double `p'=`y'/`N'`'
 				}
-				
-				if `estimator'==0 { // these are the results, just transform, inference and organize ///////MOVE THIS TO EXPPLOIT CODE STRUCTURE BELOW
-					if `bootreps'<0 {
-						bunchcalc, estimator(0) polynomial(`polynomial') bw(`bw') cutoff(`cutoff') h(`H') l(`L') b0(_b[b0]) t0(`t0') t1(`t1') `constant' `positiveshift' `log' boot
-						mat `b'=r(b)
-						}
-					else if `bootreps'==0 {
-						varcorrect `y' 0.`dum'#(`rhsvars') 0.`dum' 1.`dum'#(`rhsvars') 1.`dum' b0.`bunch', smallsample
-						mat `V'=r(V)
-						if "`transform'"!="notransform" {
-							ereturn repost V=`V'
-							bunchcalc, estimator(0) polynomial(`polynomial') bw(`bw') cutoff(`cutoff') h(`H') l(`L') b0(_b[b0]) t0(`t0') t1(`t1') `constant' `positiveshift' `log'
-							mat `b'=r(b)
-							mat `V'=r`V)
-						}
-						else mat `b'=e(b)
-					}
-					else { //bootstrap standard errors for estimator 0
-						bunchcalc, estimator(0) polynomial(`polynomial') cutoff(`cutoff') bw(`bw') h(`H') l(`L') b0(_b[b0]) t0(`t0') t1(`t1') `constant' `positiveshift' `log' boot
-						mat `b'=r(b)
-						loc nlcom r(nlcom)
-						noi di as text "Performing bootstrap repetitions..."
-						noi simulate, reps(`bootreps'): bssim, y(`y') modstr(0.`dum'#(`rhsvars') 0.`dum' 1.`dum'#(`rhsvars') 1.`dum' b0.`bunch') estimator(0) cutoff(`cutoff') p(`p') obs(`N') nlcom(`nlcom') `log' `positiveshift' `constant'
-					}
-				}
-				
-				else { //estimate with NLS if estimator>0
+
+				if `estimator'!=0 { //estimate with NLS if estimator>0
 				//FIND GOOD STARTING VALUES FROM THE UNRESTRICTED MODEL		
 				tokenize `names'
 				
 				if "`log'"=="" {
-					loc shiftinit=(_b[1.`dum'#`z']/_b[0.`dum'#`z'])^(1/2)-1
+					loc shiftinit=(_b[1.`dum2'#`z']/_b[0.`dum'#`z'])^(1/2)-1
 					if "`positiveshift'"=="nopositiveshift" {
 						if !mi(`shiftinit') loc init shift `shiftinit'
 						else loc init shift 0.1
@@ -241,7 +218,7 @@
 				****** specify NL model string *****
 				if "`positiveshift'"!="nopositiveshift" loc shift exp({lnshift})
 				else loc shift {shift}
-	
+				
 				// b0 parameter - integration constraint
 				loc B=0
 				forvalues b=1/`=`H'+`L'' {
@@ -266,19 +243,18 @@
 				loc b0 (`cns')/(`zmax'-`cutoff')
 				}
 				
-				if `estimator'==0 loc modstr `b0'*(`z'<=`cutoff')
-				else if inlist(`estimator',1,2)|(`estimator'==3&"`log'"=="log") loc modstr `b0'
+				if inlist(`estimator',1,2)|(`estimator'==3&"`log'"=="log") loc modstr `b0'
 				else loc modstr (`b0')*(1+`shift')^(`z'>`cutoff')
 		
 				/// b1-bK parameters, gk parameters for estimator 0
 				tokenize `names'
 				if `estimator'==0 {
 					forvalues k=1/`polynomial' {
-						loc modstr `modstr' + {b`k'}*(`z'<=`cutoff')*`z'^`k'+{g`k'}*(`z'>`cutoff')*`z'^`k'
-						loc init `init' b`k' `=_b[0.`dum'#``k'']' g`k' `=_b[1.`dum'#``k'']'
+						loc modstr `modstr' + {h0:``k''}*(`z'<=`cutoff')*`z'^`k'+{g`k'}*(`z'>`cutoff')*`z'^`k'
+						loc init `init' b`k' `=_b[0.`dum'#``k'']' g`k' `=_b[1.`dum2'#``k'']'
 					}
 					loc modstr `modstr' +{g0}*(`z'>`cutoff')
-					loc init `init' g0 `=_b[1.`dum']'
+					loc init `init' g0 `=_b[1.`dum2']'
 				}
 				else if inlist(`estimator',1,2) {
 					forvalues k=1/`polynomial' {
@@ -294,7 +270,7 @@
 						}
 				}
 				
-				if `estimator'==2 loc modstr (1/(1+exp({lnshift})*(`z'>`cutoff')))*(`modstr')
+				if `estimator'==2 loc modstr (1/(1+`shift'*(`z'>`cutoff')))*(`modstr')
 				
 				// bunch  region dummies
 				forvalues b=1/`=`H'+`L'' {
@@ -308,26 +284,47 @@
 				estat ic
 				loc aic=r(S)[1,5]
 				loc df_m_r=e(df_m)
-				if `bootreps'==0|`bootreps'>1 {
-					tempname res rss
-					predict double `res'
-					gen `rss'=`y'*(`N'-`res')^2+(`N'-`y')*(`res')^2
-					su `rss'
-					loc rss_r=r(sum)
+				
+				tempname res rss
+				predict double `res'
+				gen `rss'=`y'*(`N'-`res')^2+(`N'-`y')*(`res')^2
+				su `rss'
+				loc rss_r=r(sum)
+				
+				loc F=((`rss_r'-`rss_u')/(`df_m_u'-`df_m_r'))/(`rss_u'/(`N'-1))		
+				loc pval=Ftail(`df_m_u'-`df_m_r',`N'-1,`F')
+				}
+				else { //repost b V from OLS with new names to prepare for inference
+					loc b0 _b[/b0]
+					if "`transform'"!="notransform" {
+					tempname b
+					mat `b'=e(b)
+					mat `b'=`b'[1,1..`=2*(`polynomial'+1)'],`b'[1,`=2*(`polynomial'+1)+2'..`=colsof(`b')']
+					foreach l in b g {
+						foreach k of numlist 1/`polynomial' 0 {
+							loc newnames `newnames' /`l'`k'
+						}
+					}
+					forvalues bval=1/`=`H'+`L'' {
+						loc newnames `newnames' /bunch`bval'
+						}
+					mat colnames `b'=`newnames'
+					eret post `b'
+					}
 				}
 				
 				//INFERENCE: BINNED BOOTSTRAP OR DELTA METHOD BASED ON CORRECTED VARIANCE, transformed or untransformed
-				tempname b V
+				tempname b 
 				if `bootreps'==0 { //no inference
 					if "`transform'"!="notransform" {
-						bunchcalc, estimator(`estimator') polynomial(`polynomial') cutoff(`cutoff') bw(`bw') h(`H') l(`L') b0(`b0') t0(`t0') t1(`t1') boot `constant' `positiveshift' `log'
+						bunchcalc, estimator(`estimator') polynomial(`polynomial') cutoff(`cutoff') bw(`bw') h(`H') l(`L') b0(`b0') t0(`t0') t1(`t1') boot `constant' `positiveshift' `log' dum(`dum') bunch(`bunch') z(`z')
 						mat `b'=r(b)
 					}
 					else mat `b'=e(b)
 				}
 				else if `bootreps'==1 { //analytic standard errors
-					varcorrect `y', smallsample nl
-					loc rss_r=r(rss)
+					if `estimator'>0 varcorrect `y', smallsample nl
+					else varcorrect `y' 0.`dum'#(`rhsvars') 0.`dum' 1.`dum2'#(`rhsvars') 1.`dum2' b0.`bunch', smallsample
 					mat `V'=r(V)
 					if "`transform'"!="notransform" {
 						ereturn repost V=`V'
@@ -345,7 +342,7 @@
 					}
 					else mat `b'=e(b)
 					forvalues s=1/`bootreps' {
-						if `s'==1 nois _dots 0, title("Performing bootstrap repetitions...") reps(`bootreps')
+						if `s'==1&"`dots'"!="nodots" nois _dots 0, title("Performing bootstrap repetitions...") reps(`bootreps')
 						loc i=0
 						loc factor=0
 						loc obs=`N'
@@ -356,16 +353,23 @@
 							loc obs=`obs'-`y'[`i']
 						}
 						if `obs'>0 replace `y'=`obs' in `=_N'
-						else replace `y'=0 if _n>
+						else replace `y'=0 if _n>`i'
 						
-						nl (`y'=`modstr'), init(`init')
+						if `estimator'>0 nl (`y'=`modstr'), init(`init')
+						else {
+							reg  `y' 0.`dum'#(`rhsvars') 0.`dum' 1.`dum2'#(`rhsvars') 1.`dum2' b0.`bunch', hascons
+							mat `b'=e(b)
+							mat `b'=`b'[1,1..`=2*(`polynomial'+1)'],`b'[1,`=2*(`polynomial'+1)+2'..`=colsof(`b')']
+							mat colnames `b'=`newnames'
+							eret post `b'
+						}
 						
 						if "`transform'"!="notransform" {
 							bunchcalc, estimator(`estimator') polynomial(`polynomial') cutoff(`cutoff') bw(`bw') h(`H') l(`L') b0(`b0') t0(`t0') t1(`t1') `constant' `positiveshift' `log' boot nlcom(`nlcom')
 							mat `V'=nullmat(`V') \ r(b)
 						}
 						else mat `V'=nullmat(`V') \ e(b)
-						noi _dots `s' 0
+						if "`dots'"!="nodots" noi _dots `s' 0
 						}
 						
 					clear
@@ -375,13 +379,6 @@
 					}
 				
 
-				//F test	
-				if `estimator'>0 {
-					loc F=((`rss_r'-`rss_u')/(`df_m_u'-`df_m_r'))/(`rss_u'/(`N'-1))		
-					loc p=Ftail(`df_m_u'-`df_m_r',`N'-1,`F')
-				}
-				}
-				
 				//NAMES
 				if "`transform'"!="notransform" {
 					if `estimator'!=2 loc names `names' `names' number_bunchers excess_mass shift marginal_response
@@ -442,7 +439,7 @@
 				else eret post `b', esample(`touse') obs(`N')
 				if `estimator'>0 {
 					estadd scalar F_mod=`F'
-					estadd scalar p_mod=`p'
+					estadd scalar p_mod=`pval'
 					estadd scalar F_df1=`=`df_m_u'-`df_m_r''
 					estadd scalar F_df2=`N'-1
 				}
@@ -469,7 +466,7 @@
 					eret di
 					if `estimator'>0 {
 						di "F-test of model assumptions: {col 42}F(`=`df_m_u'-`df_m_r'',`=`N'-1') test statistic {col 72}`: di %12.4f `F''"
-						di "{col 42}p-value {col 72}`: di %12.4f `p''"
+						di "{col 42}p-value {col 72}`: di %12.4f `pval''"
 						di "{hline 83}"
 						}
 					if inlist(`estimator',1,2) {
