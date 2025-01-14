@@ -12,7 +12,7 @@ program polbunchsim, rclass
 	}
 	else {
 		return scalar e=_b[bunching:elasticity]
-		test elasticity=`el'
+		test elasticity]=`el'
 		return scalar p=r(p)
 	}
 	}

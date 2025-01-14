@@ -25,11 +25,10 @@
 			NOIsily ///
 			estimator(integer 3) /// Specify estimator - 3 = theoretically consistent efficient estimator, 2 = chetty, 1 = no adjustment, 0=data to the left only
 			nodrop ///
-			bootstrap(integer 200) ///
 			initvals(string) ///
 			notransform ///
 			nopositiveshift ///
-			bootreps(integer 0) ///
+			bootreps(integer 1) ///
 			log ///
 			constant ///
 			]
@@ -43,7 +42,11 @@
 				marksample touse
 				preserve
 				drop if !`touse'
-
+				
+				if `bootreps'<0 {
+					noi di as error "Option bootreps can only take values 0 (no inference), 1 (analytic standard errors, the default) or a positive integer >0 (binned bootstrap)."
+					exit 301
+				}
 				if `polynomial'<=0 {
 					noi di as error "Polynomial must be a positive integer"
 					exit 301
@@ -184,14 +187,13 @@
 				gen double `rss'=`y'*(`N'-`pred')^2+(`N'-`y')*(-`pred')^2
 				su `rss'
 				loc rss_u=r(sum)
-				noi di `rss_u'
 				
-				if `bootreps'>0 {
+				if `bootreps'>1 {
 					tempname p
 					gen double `p'=`y'/`N'
 				}
 				
-				if `estimator'==0 { // these are the results, just transform, inference and organize
+				if `estimator'==0 { // these are the results, just transform, inference and organize ///////MOVE THIS TO EXPPLOIT CODE STRUCTURE BELOW
 					if `bootreps'<0 {
 						bunchcalc, estimator(0) polynomial(`polynomial') bw(`bw') cutoff(`cutoff') h(`H') l(`L') b0(_b[b0]) t0(`t0') t1(`t1') `constant' `positiveshift' `log' boot
 						mat `b'=r(b)
@@ -212,7 +214,7 @@
 						mat `b'=r(b)
 						loc nlcom r(nlcom)
 						noi di as text "Performing bootstrap repetitions..."
-						noi simulate, reps(`bootreps'): bssim, modstr(0.`dum'#(`rhsvars') 0.`dum' 1.`dum'#(`rhsvars') 1.`dum' b0.`bunch') estimator(0) cutoff(`cutoff') p(`p') obs(`N') nlcom(`nlcom') `log' `positiveshift' `constant'
+						noi simulate, reps(`bootreps'): bssim, y(`y') modstr(0.`dum'#(`rhsvars') 0.`dum' 1.`dum'#(`rhsvars') 1.`dum' b0.`bunch') estimator(0) cutoff(`cutoff') p(`p') obs(`N') nlcom(`nlcom') `log' `positiveshift' `constant'
 					}
 				}
 				
@@ -292,7 +294,6 @@
 						}
 				}
 				
-
 				if `estimator'==2 loc modstr (1/(1+exp({lnshift})*(`z'>`cutoff')))*(`modstr')
 				
 				// bunch  region dummies
@@ -301,12 +302,13 @@
 					loc init `init' bunch`b' `=_b[`b'.`bunch']'
 					}
 					
-
+				
+				//ESTIMATE NL MODEL
 				`noisily' nl (`y' = `modstr'), init(`init')
 				estat ic
 				loc aic=r(S)[1,5]
 				loc df_m_r=e(df_m)
-				if `bootreps'!=0 {
+				if `bootreps'==0|`bootreps'>1 {
 					tempname res rss
 					predict double `res'
 					gen `rss'=`y'*(`N'-`res')^2+(`N'-`y')*(`res')^2
@@ -316,52 +318,61 @@
 				
 				//INFERENCE: BINNED BOOTSTRAP OR DELTA METHOD BASED ON CORRECTED VARIANCE, transformed or untransformed
 				tempname b V
-				if `bootreps'<0 { //no inference
-					mat `b'=e(b)
+				if `bootreps'==0 { //no inference
+					if "`transform'"!="notransform" {
+						bunchcalc, estimator(`estimator') polynomial(`polynomial') cutoff(`cutoff') bw(`bw') h(`H') l(`L') b0(`b0') t0(`t0') t1(`t1') boot `constant' `positiveshift' `log'
+						mat `b'=r(b)
+					}
+					else mat `b'=e(b)
 				}
-				else if `bootreps'==0 {
+				else if `bootreps'==1 { //analytic standard errors
 					varcorrect `y', smallsample nl
 					loc rss_r=r(rss)
-					noi di `rss_r'
 					mat `V'=r(V)
-					ereturn repost V=`V'
-				}
-			
-				if "`transform'"!="notransform" {
-					if `bootreps'==0 {
+					if "`transform'"!="notransform" {
+						ereturn repost V=`V'
 						bunchcalc, estimator(`estimator') polynomial(`polynomial') cutoff(`cutoff') bw(`bw') h(`H') l(`L') b0(`b0') t0(`t0') t1(`t1') `constant' `positiveshift' `log'
 						mat `b'=r(b)
 						mat `V'=r(V)
 					}
-					else { // bootstrapped standard errors, transformed estimates
+					else mat `b'=e(b)
+				}
+				else { //binned bootstrap
+					if "`transform'"!="notransform" {
 						bunchcalc, estimator(`estimator') polynomial(`polynomial') cutoff(`cutoff') bw(`bw') h(`H') l(`L') b0(`b0') t0(`t0') t1(`t1') `constant' `positiveshift' `log' boot
 						mat `b'=r(b)
-						if `bootreps'>0 {
-							loc nlcom `=r(nlcom)'
-							noi di as text "Performing bootstrap repetitions..."
-							noi simulate, reps(`bootreps'): bssim, modstr(`modstr') estimator(`estimator') polynomial(`polynomial') cutoff(`cutoff') bw(`bw') h(`H') l(`L') b0(`b0') p(`p') obs(`N') t0(`t0') t1(`t1') nl nlcom(`nlcom') `log' `constant' `positiveshift' boot
-							corr _all, cov
-							mat `V'=r(C)
-							}
-						}
-				}
-				else {
-					if `bootreps'==0 { //analytic standard errorss
-						mat `b'=e(b)
-						mat `V'=e(V)
+						loc nlcom `=r(nlcom)'
 					}
-					else if `bootreps'<0 {
-						mat `b'=e(b)
+					else mat `b'=e(b)
+					forvalues s=1/`bootreps' {
+						if `s'==1 nois _dots 0, title("Performing bootstrap repetitions...") reps(`bootreps')
+						loc i=0
+						loc factor=0
+						loc obs=`N'
+						while `obs'>0&`i'<`=_N-1' {
+							loc ++i
+							replace `y'=rbinomial(`obs',`p'/(1-`factor')) in `i'
+							loc factor=`factor'+`p'[`i']
+							loc obs=`obs'-`y'[`i']
 						}
-					else { //bootstrap, no transform
-						mat `b'=e(b)
-						noi di as text "Performing bootstrap repetitions..."
-						noi simulate, reps(`bootreps'): bssim, modstr(`modstr') estimator(`estimator') polynomial(`polynomial') cutoff(`cutoff') bw(`bw') h(`H') l(`L') p(`p') obs(`N') t0(`t0') t1(`t1') nl `log' `constant' `positiveshift' boot notransform
-						corr _all, cov
-						mat `V'=r(C)
+						if `obs'>0 replace `y'=`obs' in `=_N'
+						else replace `y'=0 if _n>`i'
+						
+						nl (`y'=`modstr'), init(`init')
+						
+						if "`transform'"!="notransform" {
+							bunchcalc, estimator(`estimator') polynomial(`polynomial') cutoff(`cutoff') bw(`bw') h(`H') l(`L') b0(`b0') t0(`t0') t1(`t1') `constant' `positiveshift' `log' boot nlcom(`nlcom')
+							mat `V'=nullmat(`V') \ r(b)
+						}
+						else mat `V'=nullmat(`V') \ e(b)
+						noi _dots `s' 0
+						}
+						
+					clear
+					svmat `V'
+					corr _all, cov
+					mat `V'=r(C)
 					}
-				}
-				}
 				
 
 				//F test	
@@ -369,7 +380,7 @@
 					loc F=((`rss_r'-`rss_u')/(`df_m_u'-`df_m_r'))/(`rss_u'/(`N'-1))		
 					loc p=Ftail(`df_m_u'-`df_m_r',`N'-1,`F')
 				}
-				
+				}
 				
 				//NAMES
 				if "`transform'"!="notransform" {
@@ -412,13 +423,13 @@
 				}
 				
 				mat colnames `b'=`names'
-				if `bootreps'>=0 {
+				if `bootreps'>=1 {
 					mat colnames `V'=`names'
 					mat rownames `V'=`names'
 				}
 				if "`transform'"!="notransform" {
 					mat coleq `b'=`coleq0' `coleq1' bunching
-					if `bootreps'>=0 {
+					if `bootreps'>=1 {
 						mat coleq `V'=`coleq0' `coleq1' bunching
 						mat roweq `V'=`coleq0' `coleq1' bunching
 					}
@@ -427,7 +438,7 @@
 				restore
 				
 				//return results
-				if `bootreps'>=0 eret post `b' `V', esample(`touse') obs(`N')
+				if `bootreps'>=1 eret post `b' `V', esample(`touse') obs(`N')
 				else eret post `b', esample(`touse') obs(`N')
 				if `estimator'>0 {
 					estadd scalar F_mod=`F'
@@ -447,7 +458,7 @@
 				ereturn matrix table=`table'
 				ereturn local binname "`z'"
 				ereturn scalar bw=`bw'
-				if `bootreps'>0 estadd local vcetype "bootstrap"
+				if `bootreps'>1 estadd local vcetype "bootstrap"
 				if "`log'"=="log" ereturn scalar log=1
 				else ereturn scalar log=0
 	
