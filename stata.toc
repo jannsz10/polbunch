@@ -1,0 +1,3 @@
+v 0.1
+d Martin Eckhoff Andresen, University of Oslo
+p polbunch efficient polynomial bunching estimation
