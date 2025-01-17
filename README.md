@@ -5,4 +5,4 @@ Efficient and theoretical polynomial bunching estimation. Implements various pol
 <img src="polbunchex.png" alt="main bunch plot" width="600"/>
 
 ## Installing development version
-net install polbunch, from("https://raw.githubusercontent.com/martin-andresen/polbunch/master")
+net install polbunch, from (https://raw.githubusercontent.com/martin-andresen/polbunch/master/)
