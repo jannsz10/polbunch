@@ -23,12 +23,12 @@
 			t1(numlist min=1 max=1  >=0 <=1) ///
 			POLynomial(integer 7) ///
 			NOIsily ///
-			estimator(integer 3) /// Specify estimator - 3 = theoretically consistent efficient estimator, 2 = chetty, 1 = no adjustment, 0=data to the left only
+			ESTimator(integer 3) /// Specify estimator - 3 = theoretically consistent efficient estimator, 2 = chetty, 1 = no adjustment, 0=data to the left only
 			nodrop ///
-			initvals(string) ///
+			INITvals(string) ///
 			notransform ///
 			nopositiveshift ///
-			bootreps(integer 1) ///
+			BOOTreps(integer 1) ///
 			log ///
 			constant ///
 			nodots /// suppress dots for bootstrap progress
@@ -91,11 +91,13 @@
 					
 					if "`drop'"!="nodrop" {
 						su `z'
-						if abs(`cutoff'-floor((`z'-r(min))/`bw')*`bw'-r(min))>`bw'/10 {
-							drop if `z'<`cutoff'-floor((`cutoff'-r(min))/`bw')*`bw'
+						loc min=r(min)
+						loc max=r(max)
+						if abs(`cutoff'-floor((`z'-`min')/`bw')*`bw'-`min')>`bw'/10 {
+							drop if `z'<`cutoff'-floor((`cutoff'-`min')/`bw')*`bw'
 						}
-						if abs(`cutoff'+floor((r(max)-`cutoff')/`bw')*`bw'-r(max))>`bw'/10 {
-							drop if `z'>`cutoff'+floor((r(max)-`cutoff')/`bw')*`bw'
+						if abs(`cutoff'+floor((`max'-`cutoff')/`bw')*`bw'-`max')>`bw'/10 {
+							drop if `z'>`cutoff'+floor((`max'-`cutoff')/`bw')*`bw'
 						}
 					}
 					count
@@ -182,7 +184,10 @@
 				}
 					
 				//ESTIMATE UNRESTRICTED MODEL (as benchmark or main model if estimator==0)
-				`noisily' reg `y' 0.`dum'#(`rhsvars') 0.`dum' 1.`dum2'#(`rhsvars') 1.`dum2' b0.`bunch', hascons
+				forvalues bval=1/`=`H'+`L'' {
+					loc bunchvars `bunchvars' `bval'.`bunch'
+					}
+				`noisily' reg `y' 0.`dum'#(`rhsvars') 0.`dum' 1.`dum2'#(`rhsvars') 1.`dum2' `bunchvars', nocons
 				loc df_m_u=e(df_m)
 				tempvar pred rss
 				predict double `pred'
@@ -294,41 +299,58 @@
 				loc F=((`rss_r'-`rss_u')/(`df_m_u'-`df_m_r'))/(`rss_u'/(`N'-1))		
 				loc pval=Ftail(`df_m_u'-`df_m_r',`N'-1,`F')
 				}
-				else { //repost b V from OLS with new names to prepare for inference
+				else { //repost b V from OLS with new names to prepare for inference + transform
+					estat ic
+					loc aic=r(S)[1,5]
 					loc b0 _b[/b0]
 					if "`transform'"!="notransform" {
-					tempname b
-					mat `b'=e(b)
-					mat `b'=`b'[1,1..`=2*(`polynomial'+1)'],`b'[1,`=2*(`polynomial'+1)+2'..`=colsof(`b')']
-					foreach l in b g {
-						foreach k of numlist 1/`polynomial' 0 {
-							loc newnames `newnames' /`l'`k'
+						foreach l in b g {
+							foreach k of numlist 1/`polynomial' 0 {
+								loc newnames `newnames' /`l'`k'
+							}
+						}
+						forvalues bval=1/`=`H'+`L'' {
+							loc newnames `newnames' /bunch`bval'
+							}
 						}
 					}
-					forvalues bval=1/`=`H'+`L'' {
-						loc newnames `newnames' /bunch`bval'
-						}
-					mat colnames `b'=`newnames'
-					eret post `b'
-					}
-				}
 				
 				//INFERENCE: BINNED BOOTSTRAP OR DELTA METHOD BASED ON CORRECTED VARIANCE, transformed or untransformed
 				tempname b V
+				if "`transform'"!="notransform"&`estimator'==0&`bootreps'!=1 {
+						mat `b'=e(b)
+						mat colnames `b'=`newnames'	
+						eret post `b'
+					}
 				if `bootreps'==0 { //no inference
 					if "`transform'"!="notransform" {
-						bunchcalc, estimator(`estimator') polynomial(`polynomial') cutoff(`cutoff') bw(`bw') h(`H') l(`L') b0(`b0') t0(`t0') t1(`t1') boot `constant' `positiveshift' `log' dum(`dum') bunch(`bunch') z(`z')
+						bunchcalc, estimator(`estimator') polynomial(`polynomial') cutoff(`cutoff') bw(`bw') h(`H') l(`L') b0(`b0') t0(`t0') t1(`t1') boot `constant' `positiveshift' `log'
 						mat `b'=r(b)
-					}
+						if r(exit)==1 {
+							noi di in red "Could not find solution to polynomial equation for the response of the marginal buncher in one or more bootstrap repetitions. You could consider trying the constant approximation using the option "constant", or the option "notransform" to report raw estimates and then manually convert those to objects of interest post-estimation."
+								exit 301
+							}
+						}
 					else mat `b'=e(b)
 				}
 				else if `bootreps'==1 { //analytic standard errors
 					if `estimator'>0 varcorrect `y', smallsample nl
-					else varcorrect `y' 0.`dum'#(`rhsvars') 0.`dum' 1.`dum2'#(`rhsvars') 1.`dum2' b0.`bunch', smallsample
+					else varcorrect `y' 0.`dum'#(`rhsvars') 0.`dum' 1.`dum2'#(`rhsvars') 1.`dum2' `bunchvars', smallsample
 					mat `V'=r(V)
 					if "`transform'"!="notransform" {
-						ereturn repost V=`V'
+						if `estimator'==0 {
+							mat `b'=e(b)
+							mat colnames `b'=`newnames'	
+							mat rownames `V'=`newnames'
+							mat colnames `V'=`newnames'
+							eret post `b' `V'
+						}
+						else ereturn repost V=`V'
 						bunchcalc, estimator(`estimator') polynomial(`polynomial') cutoff(`cutoff') bw(`bw') h(`H') l(`L') b0(`b0') t0(`t0') t1(`t1') `constant' `positiveshift' `log'
+						if r(exit)==1 {
+							noi di in red "Could not find solution to polynomial equation for the response of the marginal buncher in one or more bootstrap repetitions. You could consider trying the constant approximation using the option "constant", or the option "notransform" to report raw estimates and then manually convert those to objects of interest post-estimation."
+								exit 301
+							}
 						mat `b'=r(b)
 						mat `V'=r(V)
 					}
@@ -341,6 +363,7 @@
 						loc nlcom `=r(nlcom)'
 					}
 					else mat `b'=e(b)
+					tempname tmpb
 					forvalues s=1/`bootreps' {
 						if `s'==1&"`dots'"!="nodots" nois _dots 0, title("Performing bootstrap repetitions...") reps(`bootreps')
 						loc i=0
@@ -356,16 +379,19 @@
 						else replace `y'=0 if _n>`i'
 						
 						if `estimator'>0 nl (`y'=`modstr'), init(`init')
-						else {
-							reg  `y' 0.`dum'#(`rhsvars') 0.`dum' 1.`dum2'#(`rhsvars') 1.`dum2' b0.`bunch', hascons
-							mat `b'=e(b)
-							mat `b'=`b'[1,1..`=2*(`polynomial'+1)'],`b'[1,`=2*(`polynomial'+1)+2'..`=colsof(`b')']
-							mat colnames `b'=`newnames'
-							eret post `b'
-						}
+						else reg  `y' 0.`dum'#(`rhsvars') 0.`dum' 1.`dum2'#(`rhsvars') 1.`dum2' `bunchvars', nocons
 						
 						if "`transform'"!="notransform" {
+							if `estimator'==0 {
+								mat `tmpb'=e(b)
+								mat colnames `tmpb'=`newnames'	
+								eret post `tmpb'
+							}
 							bunchcalc, estimator(`estimator') polynomial(`polynomial') cutoff(`cutoff') bw(`bw') h(`H') l(`L') b0(`b0') t0(`t0') t1(`t1') `constant' `positiveshift' `log' boot nlcom(`nlcom')
+							if r(exit)==1 {
+								noi di in red "Could not find solution to polynomial equation for the response of the marginal buncher in one or more bootstrap repetitions. You could consider trying the constant approximation using the option "constant", or the option "notransform" to report raw estimates and then manually convert those to objects of interest post-estimation."
+								exit 301
+							}
 							mat `V'=nullmat(`V') \ r(b)
 						}
 						else mat `V'=nullmat(`V') \ e(b)
@@ -435,8 +461,9 @@
 				restore
 				
 				//return results
-				if `bootreps'>=1 eret post `b' `V', esample(`touse') obs(`N')
-				else eret post `b', esample(`touse') obs(`N')
+				noi mat li `b'
+				if `bootreps'>=1 eret post `b' `V', esample(`touse') depname(freq) obs(`N')
+				else eret post `b', esample(`touse') obs(`N') depname(freq)
 				if `estimator'>0 {
 					estadd scalar F_mod=`F'
 					estadd scalar p_mod=`pval'
@@ -449,6 +476,7 @@
 				ereturn scalar lower_limit=`zL'
 				ereturn scalar upper_limit=`zH'
 				ereturn scalar aic=`aic'
+				ereturn local cmd "polbunch"
 				ereturn local cmdname "polbunch"
 				ereturn local title 	"Polynomial bunching estimates"
 				ereturn local cmdline 	"polbunch `0'"
@@ -498,7 +526,9 @@ syntax anything, [nl smallsample]
 		if "`nl'"=="nl" {
 			predictnl `res'=predict(), g(`g') iterate(1000)
 			replace `res'=-sqrt(`smallsample')*`res' //small sample adj
+			
 			mata: st_matrix("`V'",varcorrect(st_data(.,"`g'*"),st_data(.,"`y'"),st_data(.,"`res'"),0,`smallsample'))
+
 			}
 		else {
 			predict `res'
