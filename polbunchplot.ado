@@ -4,7 +4,7 @@
 cap prog drop polbunchplot
 	program polbunchplot
 	
-	syntax [name], [graph_opts(string) noci nostar limit(numlist min=2 max=2) log truncate]
+	syntax [name], [graph_opts(string) noci nostar limit(numlist min=2 max=2) log TRUncate]
 	quietly {
 		if "`name'"!="" est restore `name'
 		if "`=e(cmdname)'"!="polbunch" {

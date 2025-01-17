@@ -74,7 +74,8 @@ values from the linear regression.
 If the option notransform is specified, polbunch reports the parameters of the estimating equation, which depends on the estimator. Otherwise, and as a 
 default, polbunch transforms the reported estimates and report the parameters of h0 (the density of earnings under the low tax), h1 (the density of 
 earnings under the high tax) and various bunching parameters. These include the number of bunchers, the excess mass, the proportional shift parameter, 
-the response of the marginal buncher and, if t0() and t1() are specified, the elasticity.
+the response of the marginal buncher and, if t0() and t1() are spec
+ified, the elasticity.
 
 Inference for the reported parameters is based on the analytical standard errors (the default, if bootreps(1)) or the binned bootstrap procedure 
 (if bootreps>=2) developed by Andresen (2025), unless the bootreps(0) option is specified, which omits the calculation of variance of the estimated 
