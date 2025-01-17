@@ -448,7 +448,6 @@
 				restore
 				
 				//return results
-				noi mat li `b'
 				if `bootreps'>=1 eret post `b' `V', esample(`touse') depname(freq) obs(`N')
 				else eret post `b', esample(`touse') obs(`N') depname(freq)
 				if `estimator'>0 {

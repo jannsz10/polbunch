@@ -14,7 +14,7 @@
 {title:Syntax}
 
 {p 10 15 2}
-{cmd:polbunchgendata} newvarname {cmd:,} obs(#) cutoff(#) el(#) t0(#) t1(#) [distribution(string) log]
+{cmd:polbunchgendata} newvarname {cmd:,} obs(#) cutoff(#) el(#) t0(#) t1(#) [distribution(string) log buncherror(string)]
 
 {pstd}
 {cmd:polbunchgendata} generates data from the iso-elastic labor supply model with a tax kink at {cmd: cutoff} and a counterfactual distribution 
@@ -29,6 +29,7 @@ of earnings specified in {opt: distribution}.
 {synopt:{opt cutoff(#)}} Kink point.{p_end}
 {synopt:{opt distribution(string)}} A string that will generate a valid random distribution of earnings, for instance rbeta(2,5). Also allowed are triangular(a,b,c), with triangular(0,3,0) the default.{p_end}
 {synopt:{opt log}} Specifies that the earnings variable is in logs.T{p_end}
+{synopt:{opt bunhcerror(string)}} Specifies an optimization error for bunchers that is subtracted from the bunching point for those that (attempt to) bunch.{p_end}
 {synoptline}
 
 {marker Author}{...}
