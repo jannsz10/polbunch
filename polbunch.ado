@@ -1,20 +1,7 @@
-		*! polbunch version date 20241209
+		*! polbunch version date 20251701
 		* Author: Martin Eckhoff Andresen
 		* This program is part of the polbunch package.
 		
-		/*
-		Add support for constant approx?
-		bootstrap -1 => no standard errors reported
-		
-		
-		REPORTING
-		bunching eq: B, shift, marginal response, (elasticity)
-		estimator 0:  	report estimates from unrestricted model - notransform just sums over bunching coefs
-						+ bunching eq w/o std. errors (input: B,h0,bw)
-		estimator 1: 	Report h0,h1,B (w/ transform), h0,bunch coefs (w/o transform) + bunching eq w/o std. errors
-		estimator 2: 	Report h0,h1,B,delta (w/transform), h0 (-cons), bunch coefs, delta (w/o transform) + bunching eq w/o std errors
-		estimator 3: 	Report h0,h1,B + bunching eq w/ std errors (w/ transform), h0 (-cons), bunch coefs (w/o transform)
-		*/
 		cap prog drop polbunch
 		program polbunch, eclass sortpreserve
 			syntax varlist(min=1 max=2) [if] [in],  CUToff(real) [bw(numlist min=1 max=1 >0)  ///
@@ -477,7 +464,6 @@
 				ereturn scalar upper_limit=`zH'
 				ereturn scalar aic=`aic'
 				ereturn local cmd "polbunch"
-				ereturn local cmdname "polbunch"
 				ereturn local title 	"Polynomial bunching estimates"
 				ereturn local cmdline 	"polbunch `0'"
 				ereturn matrix table=`table'
