@@ -350,7 +350,6 @@
 				}
 
 				
-				
 				//ESTIMATE NL MODEL
 				`noisily' nl (`y' = `modstr'), init(`init')
 				}
