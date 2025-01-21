@@ -373,7 +373,7 @@
 					if `estimator'>0 {
 						varcorrect `y', smallsample nl
 						mat `V'=r(V)
-						else ereturn repost V=`V'
+						ereturn repost V=`V'
 						}
 						if "`transform'"!="notransform" {
 							bunchcalc, estimator(`estimator') polynomial(`polynomial') cutoff(`cutoff') bw(`bw') h(`H') l(`L') b0(`b0') t0(`t0') t1(`t1') `constant' `positiveshift' `log'
