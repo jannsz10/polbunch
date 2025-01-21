@@ -192,11 +192,12 @@
 				mat `b'=e(b)
 				mat colnames `b'=`newnames'
 				
-				if "`test'" != "notest" { //standard errors for unrestricted model for model test
+				if "`test'" != "notest"|(`bootreps'==1&`estimator'==0) { //standard errors for unrestricted model for model test
 					varcorrect `y' 0.`dum'#(`rhsvars') 0.`dum' 1.`dum2'#(`rhsvars') 1.`dum2' `bunchvars', smallsample
+					mat `V'=r(V)
 					mat colnames `V'=`newnames'
 					mat rownames `V'=`newnames'
-					mat `V'=r(V)
+					
 					ereturn post `b' `V' 
 					ereturn local cmd="regress"
 					est sto tmp
@@ -352,7 +353,8 @@
 				
 				//ESTIMATE NL MODEL
 				`noisily' nl (`y' = `modstr'), init(`init')
-				}
+				}  
+				else loc b0 _b[/b0]
 
 				//INFERENCE: BINNED BOOTSTRAP OR DELTA METHOD BASED ON CORRECTED VARIANCE, transformed or untransformed
 				tempname b V
@@ -446,15 +448,16 @@
 					tokenize `names'
 					loc names
 					forvalues i=1/`=`L'' {
-						loc names `names' number_bunchers:`=`L'-`i'+1'.below
+						loc bnames `bnames' number_bunchers:`=`L'-`i'+1'.below
 					}
 					if `H'>0 {
 						forvalues i=1/`=`H'' {
-							loc names `names' number_bunchers:`i'.above
+							loc bnames `bnames' number_bunchers:`i'.above
 						}
 					}
 					
 					if `estimator'>0 {
+						loc names `bnames'
 						if `estimator'==2 {
 							if "`positiveshift'"!="nopositiveshift" loc names `names' delta:lndelta
 							else loc names `names' delta:delta
@@ -466,14 +469,17 @@
 					forvalues k=1/`polynomial' {
 						loc names `names' h0:``k''
 					}
-					if `estimator'==0 {
-						loc names `names' h0:_cons
+				} 
+				else {
+					forvalues h=0/1 {
 						forvalues k=1/`polynomial' {
-							loc names `names' h1:``k''
+							loc names `names' h`h':``k''
 						}
-						loc names `names' h1:_cons
+						loc names `names' h`h':_cons
 					}
+				loc names `names' `bnames'
 				}
+				
 				}
 				
 				mat colnames `b'=`names'
@@ -507,7 +513,7 @@
 				if `bootreps'>0 ereturn local cmd "polbunch"
 				ereturn local cmdline "polbunch"
 				ereturn local title 	"Polynomial bunching estimates"
-				ereturn local cmdline 	"polbunch `"
+				ereturn local cmdline 	"polbunch `0'"
 				ereturn matrix table=`table'
 				ereturn local binname "`z'"
 				ereturn scalar bw=`bw'

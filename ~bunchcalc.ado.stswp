@@ -102,7 +102,7 @@ program bunchcalc, rclass
 	if "`boot'"=="" {
 		tempname V
 		noi di "`nlcom'"
-		noi eret di
+		
 		nlcom `nlcom'
 		mat `b'=r(b)
 		mat `V'=r(V)
