@@ -36,6 +36,7 @@
 {synopt:{opt nodrop}} implies that polbunch does not drop the leftmost and rightmost bin when these appear to be cut by sample selection.{p_end}
 {synopt:{opt noi:sily}} display intermediate output such as iteration logs.{p_end}
 {synopt:{opt nodots}} suppress dots indicating bootstrap progress
+{synopt:{opt notest}} do not test model assumptions
 
 {synoptline}
 {p2colreset}{...}
@@ -54,7 +55,7 @@ specified, polbunch interprets this as data being already binned, and take the f
 bin midpoints. Option bw() cannot be specified, and will be determined by polbunch from the bin widths. 
 
 Polbunch implements four different bunching estimators, but beware that these are supported for comparison to alternative estimators in the litterature, 
-and besides the default, the other alternatives are neither consistent with theory, unbiased or consistent. The default choise of estimator(3) implements 
+and besides the default, the other alternatives are neither consistent with theory, unbiased or efficient. The default choise of estimator(3) implements 
 the theoretically consistent and efficient polynomial bunching estimator of Andresen (2025). Like most bunching estimators, this relies on very strong 
 structural assumptions, including the correct specification of the iso-elastic labor suppply model and a counterfactual density that is well approximated 
 by the specified polynomial.
@@ -68,14 +69,16 @@ Alternative estimators include
 After having constructed the binned data, polbunch proceeds by estimating a regression of the bin counts on separate polynomials below and above the cutoff
  and a series of fixed effects for each bin in the excluded region. If estimator(0) is specified, the results are posted based on this regression.
 
-If one of the more restrictive estimators 1-3 are specified, polbunch estimates the corresponding model using nonlinear least squares, based on initial 
-values from the linear regression.
+If one of the more restrictive estimators 1-3 are specified, polbunch then tests the restrictions imposed on this unrestricted model by that estimator, 
+and reports the Chi2 test statistic and associated p-value, unless the option "notest" is specified. This may be interpreted as a joint test of whether 
+the restrictions implicitly imposed by the estimator is consistent with the coefficients on the separately estimated polynomials from the unrestricted model, 
+and the parametric polynomial assumption itself. Polbunch then estimates the corresponding restricted model using nonlinear least squares, based on initial
+ values from the linear regression.
 
 If the option notransform is specified, polbunch reports the parameters of the estimating equation, which depends on the estimator. Otherwise, and as a 
 default, polbunch transforms the reported estimates and report the parameters of h0 (the density of earnings under the low tax), h1 (the density of 
 earnings under the high tax) and various bunching parameters. These include the number of bunchers, the excess mass, the proportional shift parameter, 
-the response of the marginal buncher and, if t0() and t1() are spec
-ified, the elasticity.
+the response of the marginal buncher and, if t0() and t1() are specified, the elasticity.
 
 Inference for the reported parameters is based on the analytical standard errors (the default, if bootreps(1)) or the binned bootstrap procedure 
 (if bootreps>=2) developed by Andresen (2025), unless the bootreps(0) option is specified, which omits the calculation of variance of the estimated 
