@@ -35,8 +35,8 @@
 {synopt:{opt initvals(string)}}specifies initial values for the NLS procedure. By default polbunch finds reasonable feasible values from an initial OLS regression.{p_end}
 {synopt:{opt nodrop}} implies that polbunch does not drop the leftmost and rightmost bin when these appear to be cut by sample selection.{p_end}
 {synopt:{opt noi:sily}} display intermediate output such as iteration logs.{p_end}
-{synopt:{opt nodots}} suppress dots indicating bootstrap progress
-{synopt:{opt notest}} do not test model assumptions
+{synopt:{opt nodots}} suppress dots indicating bootstrap progress{p_end}
+{synopt:{opt notest}} do not test model assumptions{p_end}
 
 {synoptline}
 {p2colreset}{...}
