@@ -281,21 +281,21 @@
 					else if `estimator'==2 loc g`k' `b`k''*(1+`shift')
 					else if "`log'"=="" loc g`k' `b`k''*(1+`shift')^`=`k'+1'
 					else {
-						loc g`k' `b'`k'
+						loc g`k' `b`k''
 						if `polynomial'>`k' forvalues n=`=`k'+1'/`polynomial' {
-							loc g`k' `g`k'' +_bb`n']*comb(`n',`k')*ln(1+`shift')^`=`n'-`k''
+							loc g`k' `g`k'' +{b`n'}*comb(`n',`k')*ln(1+`shift')^`=`n'-`k''
 						}
 					}
 				}
 				
 					
 				**** NL model string ****
-				loc modstr `b0'*0.`dum'
+				loc modstr (`b0')*0.`dum'
 				forvalues k=1/`polynomial' {
-					loc modstr `modstr' +`b`k''*0.`dum'*`z'^`k'
+					loc modstr `modstr' +(`b`k'')*0.`dum'*`z'^`k'
 				}
 				forvalues k=0/`polynomial' {
-					loc modstr `modstr' +`g`k''*1.`dum'*`z'^`k'
+					loc modstr `modstr' +(`g`k'')*1.`dum'*`z'^`k'
 				}
 				
 				**** bunch dummies ****
@@ -314,7 +314,7 @@
 
 				//TESTSTRING
 				if "`test'"!="notest" {
-					if `estimator'==3&"`log'"=="log" loc shiftres (exp((_b[/g`=`polynomial'-1']-_b[/b`=`polynomial'-1'])/(`polynomial'*_[/b`polynomial']))-1)
+					if `estimator'==3&"`log'"=="log" loc shiftres (exp((_b[/g`=`polynomial'-1']-_b[/b`=`polynomial'-1'])/(`polynomial'*_b[/b`polynomial']))-1)
 					else loc shiftres (_b[/g0]/_b[/b0]-1)
 					forvalues k=0/`polynomial' {
 						if "`positiveshift'"=="nopositiveshift" loc teststr `teststr' (_b[/g`k']=`=subinstr("`g`k''","_b[/shift]","`shiftres'",.)')
@@ -327,6 +327,8 @@
 				
 				//ESTIMATION AND INFERENCE
 				tempname b V bu Vu tmpb
+				
+				noi di "`modstr'"
 				
 				if inlist(`bootreps',0,1) loc stop=0
 				else loc stop=`bootreps'
@@ -361,7 +363,7 @@
 						mat `bu'=e(b)
 						mat `Vu'=e(V)
 						if "`test'"!="notest"&`estimator'>0 {
-							testnl `teststr'
+							noi testnl `teststr'
 							loc chi2=r(chi2)
 							loc p_mod=r(p)
 							loc df=r(df)
@@ -381,6 +383,7 @@
 						//find good starting values
 						if "`log'"=="" loc shiftinit=(_b[/g0]/_b[/b0])-1
 						else loc shiftinit=exp((_b[/g`=`polynomial'-1']-_b[/b`=`polynomial'-1'])/(`polynomial'*_b[/b`polynomial']))-1
+						if `shiftinit'<=0|mi(`shiftinit') loc shiftinit=0.1
 						if "`positiveshift'"!="nopositiveshift" loc init lnshift `=ln(`shiftinit')'
 						else loc init shift `shiftinit'
 						forvalues k=1/`polynomial' {
@@ -392,7 +395,6 @@
 						
 						//estimate restricted model
 						timer on 2
-						noi di "`modstr'"
 						nl (`y'=`modstr'), init(`init')
 						timer off 2
 						if `bootreps'==1 {
@@ -526,7 +528,7 @@
 					if inlist(`estimator',1,2) {
 						di "Note: Estimator is not consistent with iso-elastic labor supply model and thus biased."
 					}
-					if "`constant'"!="" {
+					if "`constant'"!=""&"`t0'"!=""&"`t1'"!=""&"`transform'"!="notransform" {
 						di "Note: Using the constant approximation to the density to calculate the elasticity may lead to bias."
 					}
 				}
