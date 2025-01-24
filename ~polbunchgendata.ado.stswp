@@ -10,7 +10,7 @@ program polbunchgendata, rclass
 		cap gen `error'=`buncherror'
 		if _rc!=0 {
 			noi di as error "Option buncherror must be an expression that can generate a Stata variable - it should indicate the optimization friction or error for bunchers. Try e.g. +rnormal() for an additive normally distributed error or *exp(rnormal()) for a multiplicative normal error. "
-			exit 301
+			exit 
 		}
 	}
 	if !inrange(`t0',0,1)|!inrange(`t1',0,1)|`t1'<`t0'|`el'<0 {

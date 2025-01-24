@@ -244,7 +244,7 @@ where you can check your version date as follows:{p_end}
 {title:Also see}
 
 {p 4 14 2}
-Development version: net install polbunch, from("https://raw.githubusercontent.com/martin-andresen/polbunch/master/"){p_end}
+Development version: net install polbunch, from("https://raw.githubusercontent.com/martin-andresen/polbunch/master/)"){p_end}
 
 {p 7 14 2}
 Help:  {helpb polbunchplot}, {helpb polbunchgendata}{p_end}
