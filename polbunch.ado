@@ -27,7 +27,7 @@
 			
 			quietly {
 				if `bootreps'>0 {
-					coeftabresults=c(coeftabresults)
+					loc coeftabresults=c(coeftabresults)
 					set coeftabresults off
 				}
 				if !inlist(`estimator',0,1,2,3) {
