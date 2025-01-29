@@ -20,9 +20,16 @@
 			constant ///
 			nodots /// suppress dots for bootstrap progress
 			notest /// do not test
+			nosmallsample ///
+			nobayes ///
+			nozero ///
 			]
 			
 			quietly {
+				if `bootreps'>0 {
+					coeftabresults=c(coeftabresults)
+					set coeftabresults off
+				}
 				if !inlist(`estimator',0,1,2,3) {
 					noi di as error "Option estimator can take only values 1 (using data to the left only), 2 (no adjustment), 2 (Chetty et. al. adjustment) or 3 (theoretically consistent and efficient estimator)."
 					exit 301
@@ -187,8 +194,12 @@
 					}
 
 				if `bootreps'>1 {
-					tempname p
-					gen double `p'=`y'/`N'
+					tempname p yorig
+					if "`bayes'"=="nobayes" gen double `p'=`y'/`N'
+					else {
+						gen double `yorig'=`y'
+						recast double `y'
+					}
 				}
 
 				//NAMES for final model
@@ -328,32 +339,37 @@
 				//ESTIMATION AND INFERENCE
 				tempname b V bu Vu tmpb
 				
-				noi di "`modstr'"
-				
 				if inlist(`bootreps',0,1) loc stop=0
 				else loc stop=`bootreps'
 				forvalues s=0/`stop' {
 					if `s'==1&"`dots'"!="nodots" nois _dots 0, title("Performing bootstrap repetitions...") reps(`bootreps')
 					if `s'>0 { //resample outcome
-						loc i=0
-						loc factor=0
-						loc obs=`N'
-						while `obs'>0&`i'<`=_N-1' {
-							loc ++i
-							replace `y'=rbinomial(`obs',`p'/(1-`factor')) in `i'
-							loc factor=`factor'+`p'[`i']
-							loc obs=`obs'-`y'[`i']
+						if "`bayes'"=="nobayes" {
+							loc i=0
+							loc factor=0
+							loc obs=`N'
+							while `obs'>0&`i'<`=_N-1' {
+								loc ++i
+								replace `y'=rbinomial(`obs',`p'/(1-`factor')) in `i'
+								loc factor=`factor'+`p'[`i']
+								loc obs=`obs'-`y'[`i']
+							}
+							if `obs'>0 replace `y'=`obs' in `=_N'
+							else replace `y'=0 if _n>`i'
+
+							}
+						else {
+							replace `y'=rgamma(`yorig',1) 
+							su `y'
+							replace `y'=`y'*`N'/r(sum)
 						}
-						if `obs'>0 replace `y'=`obs' in `=_N'
-						else replace `y'=0 if _n>`i'
-						}	
+						if "`zero'"=="nozero" replace `y'=. if `y'==0
+					}
 					
 					//estimate unrestricted model
-					timer on 1
 					reg `unresmodel', nocons
-					timer off 1
 					if `bootreps'==1 { //get variance for unrestricted model, perform test of model restrictions
-						varcorrect `unresmodel', smallsample
+						varcorrect `unresmodel', `smallsample'
 						mat `Vu'=r(V)
 						mat `bu'=e(b)
 						mat colnames `bu'=`newnames'	
@@ -363,7 +379,7 @@
 						mat `bu'=e(b)
 						mat `Vu'=e(V)
 						if "`test'"!="notest"&`estimator'>0 {
-							noi testnl `teststr'
+							testnl `teststr'
 							loc chi2=r(chi2)
 							loc p_mod=r(p)
 							loc df=r(df)
@@ -393,17 +409,17 @@
 							loc init `init' bunch`bval' `=_b[/bunch`bval']'
 						}
 						
+						
 						//estimate restricted model
-						timer on 2
 						nl (`y'=`modstr'), init(`init')
-						timer off 2
 						if `bootreps'==1 {
-							varcorrect `y', nl smallsample
+							varcorrect `y', nl `smallsample'
 							mat `V'=r(V)
 							ereturn repost V=`V'
 							}
 						}
-					
+						
+						
 						if "`transform'"!="notransform" { //TRANSFORM ESTIMATES
 							if `bootreps'==1 {
 								bunchcalc, estimator(`estimator') polynomial(`polynomial') cutoff(`cutoff') bw(`bw') h(`H') l(`L') b0(`b0') t0(`t0') t1(`t1') `constant' `positiveshift' `log' nlcom(`nlcom')
@@ -521,7 +537,7 @@
 					di "`e(title)'"
 					eret di
 					if `estimator'>0&"`test'"!="notest"&`bootreps'>0 {
-						di "Chi2 test of model assumptions: {col 42}Chi2(`df') test statistic {col 72}`: di %12.4f `chi2''"
+						di "Test of model assumptions: {col 42}Chi2(`df') test statistic {col 72}`: di %12.4f `chi2''"
 						di "{col 42}p-value {col 72}`: di %12.4f `p_mod''"
 						di "{hline 83}"
 						}
@@ -532,13 +548,14 @@
 						di "Note: Using the constant approximation to the density to calculate the elasticity may lead to bias."
 					}
 				}
-				
+			
+			if `bootreps'>0 set coeftabresults `coeftabresults'
 			}
 				
 		end
 		
 program define varcorrect, rclass
-syntax anything, [nl smallsample]
+syntax anything, [nl nosmallsample]
 	
 	qui {
 		gettoken y anything: anything
@@ -549,19 +566,16 @@ syntax anything, [nl smallsample]
 		loc N=r(sum)
 		loc k=e(df_m)
 		//if "`nl'"=="" loc ++k
-		if "`smallsample'"=="" loc smallsample=1
-		else loc smallsample=sqrt((`N'/(`N'-1))*((`N'*`numbins'-1)/(`N'*`numbins'-`k')))
 		if "`nl'"=="nl" {
 			predictnl `res'=predict(), g(`g') iterate(1000)
-			replace `res'=-sqrt(`smallsample')*`res' //small sample adj
-			mata: st_matrix("`V'",varcorrect(st_data(.,"`g'*"),st_data(.,"`y'"),st_data(.,"`res'"),0,`smallsample'))
+			replace `res'=-`res'
+			mata: st_matrix("`V'",varcorrect(st_data(.,"`g'*"),st_data(.,"`y'"),st_data(.,"`res'"),0))
 			}
 		else {
-			predict `res'
-			replace `res'=-sqrt(`smallsample')*`res' //small sample adj
-			mata: st_matrix("`V'",varcorrect(st_data(.,"`anything'"),st_data(.,"`y'"),st_data(.,"`res'"),0,`smallsample'))
+			predict `res', residuals
+			mata: st_matrix("`V'",varcorrect(st_data(.,"`anything'"),st_data(.,"`y'"),st_data(.,"`res'"),0))
 		}
-		
+		if "`smallsample'"!="nosmallsample" mat `V'=`=(`N'/(`N'-1))*((`N'*`numbins'-1)/(`N'*`numbins'-`k'))' * `V'
 		return matrix V=`V'
 		gen `rss'=`y'*(`N'-`res')^2+(`N'-`y')*(`res')^2
 		su `rss'
@@ -571,16 +585,16 @@ syntax anything, [nl smallsample]
 
 mata:
 	
-function varcorrect(real matrix X, real matrix fw, real matrix e, real scalar addcons, real scalar smallsample)
+function varcorrect(real matrix X, real matrix fw, real matrix e, real scalar addcons)
 	{
 	B=length(fw)
 	N=sum(fw)
 	if (addcons==1) X=X,J(rows(X),1,1)
 	meat=0
 	for (i=1; i<=B; i++) {
-		e[i]=e[i]+N*smallsample
+		e[i]=e[i]+N
 		meat=meat:+fw[i]:*(X' * e * e' * X)
-		e[i]=e[i]-N*smallsample
+		e[i]=e[i]-N
 	}
 	return(invsym(quadcross(X,X):*N)*meat*invsym(quadcross(X,X):*N))
 	}
