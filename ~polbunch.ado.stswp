@@ -281,7 +281,7 @@
 					}
 				loc b0 ((`cns')/(`zmax'-`cutoff'))
 				}
-				noi di "`b0'"
+				noi di 2
 				
 				********b1-bK*********
 				forvalues k=1/`polynomial' {
@@ -291,7 +291,7 @@
 				********g0-gK*********
 				forvalues k=0/`polynomial' {
 					if `estimator'==1 loc g`k' `b`k''
-					else if `estimator'==2 loc g`k' `b`k''/(1+`shift')
+					else if `estimator'==2 loc g`k' `b`k''*(1+`shift')
 					else if "`log'"=="" loc g`k' `b`k''*(1+`shift')^`=`k'+1'
 					else {
 						loc g`k' `b`k''

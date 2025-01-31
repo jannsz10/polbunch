@@ -1,7 +1,7 @@
 program polbunchsim, eclass
 	 syntax [, log reps(integer 1) obs(integer 5000) cutoff(real 1) el(real 0.4) t0(real 0.2) t1(real 0.6) bw(real 0.01) bootreps(integer 500) pol(integer 1) notransform distribution(string) nopositiveshift estimator(numlist integer) btype(numlist integer) clist(string) noisily]
 	
-	 {
+	quietly {
 	if "`btype'"=="" loc btype=1
 	if "`estimator'"=="" loc estimator=3
 
@@ -22,8 +22,8 @@ program polbunchsim, eclass
 	loc nume: word count `estimator'
 	loc numc: word count `clist'
 	loc numest=`numb'*`nume'*`numc'
-	tempname b V z
-	polbunchgendata `z', obs(`obs') cutoff(`cutoff') el(`el') t0(`t0') t1(`t1') `log'
+	tempname b V
+	polbunchgendata z, obs(`obs') cutoff(`cutoff') el(`el') t0(`t0') t1(`t1') `log'
 		
 	foreach bt of numlist `btype'  {
 		foreach e of numlist `estimator' {
@@ -31,13 +31,13 @@ program polbunchsim, eclass
 			if "`c'"=="constant" loc cval=1
 			else loc cval=0
 			timer on 1
-			if `bt'==0 polbunch `z', cutoff(`cutoff') pol(`pol') bw(`bw') t0(`t0') t1(`t1') `log' estimator(`e') bootreps(0) `c' `noisily'
-			else if `bt'==1 polbunch `z', cutoff(`cutoff') pol(`pol') bw(`bw') t0(`t0') t1(`t1') `log' estimator(`e') bootreps(1) `c' `noisily'
-			else if `bt'==2 bootstrap, reps(`bootreps'): polbunch `z', cutoff(`cutoff') pol(`pol') bw(`bw') t0(`t0') t1(`t1') `log' estimator(`e') bootreps(0) `c' `noisily'
-			else if `bt'==3 polbunch `z', cutoff(`cutoff') pol(`pol') bw(`bw') t0(`t0') t1(`t1') `log' `constant' `postiveshift' estimator(`e') bootreps(`bootreps') nobayes `c' `noisily'
-			else if `bt'==4 polbunch `z', cutoff(`cutoff') pol(`pol') bw(`bw') t0(`t0') t1(`t1') `log' estimator(`e') bootreps(`bootreps') nozero nobayes `c' `noisily'
-			else if `bt'==5 polbunch `z', cutoff(`cutoff') pol(`pol') bw(`bw') t0(`t0') t1(`t1') `log' estimator(`e') bootreps(`bootreps') `c' `noisily'
-			else if `bt'==6 polbunch `z', cutoff(`cutoff') pol(`pol') bw(`bw') t0(`t0') t1(`t1') `log' estimator(`e') bootreps(`bootreps') nozero `c' `noisily'
+			if `bt'==0 polbunch z, cutoff(`cutoff') pol(`pol') bw(`bw') t0(`t0') t1(`t1') `log' estimator(`e') bootreps(0) `c' `noisily'
+			else if `bt'==1 polbunch z, cutoff(`cutoff') pol(`pol') bw(`bw') t0(`t0') t1(`t1') `log' estimator(`e') bootreps(1) `c' `noisily'
+			else if `bt'==2 bootstrap, reps(`bootreps'): polbunch z, cutoff(`cutoff') pol(`pol') bw(`bw') t0(`t0') t1(`t1') `log' estimator(`e') bootreps(0) `c' `noisily'
+			else if `bt'==3 polbunch z, cutoff(`cutoff') pol(`pol') bw(`bw') t0(`t0') t1(`t1') `log' `constant' `postiveshift' estimator(`e') bootreps(`bootreps') nobayes `c' `noisily'
+			else if `bt'==4 polbunch z, cutoff(`cutoff') pol(`pol') bw(`bw') t0(`t0') t1(`t1') `log' estimator(`e') bootreps(`bootreps') nozero nobayes `c' `noisily'
+			else if `bt'==5 polbunch z, cutoff(`cutoff') pol(`pol') bw(`bw') t0(`t0') t1(`t1') `log' estimator(`e') bootreps(`bootreps') `c' `noisily'
+			else if `bt'==6 polbunch z, cutoff(`cutoff') pol(`pol') bw(`bw') t0(`t0') t1(`t1') `log' estimator(`e') bootreps(`bootreps') nozero `c' `noisily'
 			timer off 1
 			timer list
 			timer clear
@@ -101,7 +101,7 @@ program polbunchsim, eclass
 		estadd scalar time=`time'
 		noi eret di
 	}
-	drop `z'
+	drop z
 	}
 	
 end
