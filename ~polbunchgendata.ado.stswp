@@ -1,5 +1,5 @@
 program polbunchgendata, rclass
-	syntax newvarname [,obs(integer 5000) cutoff(real 1) el(real 0.4) t0(real 0.2) t1(real 0.6) distribution(string) log buncherror(string)]
+	syntax newvarname obs(integer 5000) cutoff(real 1) el(real 0.4) t0(real 0.2) t1(real 0.6) distribution(string) log buncherror(string)]
 	
 	quietly {
 	clear
