@@ -7,7 +7,7 @@ cap prog drop polbunchplot
 	syntax [name], [graph_opts(string) noci nostar limit(numlist min=2 max=2) log TRUncate]
 	quietly {
 		if "`name'"!="" est restore `name'
-		if "`=e(cmd)'"!="polbunch" {
+		if "`=e(cmdname)'"!="polbunch" {
 			noi di in red "Estimates in memory not created by polbunch."
 			exit
 			}

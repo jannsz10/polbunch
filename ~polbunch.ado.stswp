@@ -23,6 +23,7 @@
 			nosmallsample ///
 			nobayes ///
 			nozero ///
+			saveunres(string) ///
 			]
 			
 			 quietly {
@@ -136,19 +137,20 @@
 				loc names `r(varlist)' _cons
 				
 				//gen dummies
-				tempvar fw dupe dum dum2 bunch
+				tempvar fw dupe dum dum2 bunch cons
 				gen byte `dum'=`z'>`cutoff'
 				gen byte `dum2'=`dum'
 				egen `bunch'=group(`z') if inrange(`z',`zL',`zH')
 				replace `bunch'=0 if `bunch'==.
+				gen `cons'=1
 				count
 				loc numbins=r(N)
 				
-				//Evaluate OVB
+				//Evaluate multicollinearity
 				loc nmiss=1
 				while `nmiss'>0 {
-					_rmcoll `y' 0.`dum'#(`rhsvars') 1.`dum'#(`rhsvars') 1.`dum' b0.`bunch'
-					loc nmiss=strpos("`=r(varlist)'","o.")>0
+					regress `y' 0.`dum'#(`rhsvars') 0.`dum' 1.`dum2'#(`rhsvars') 1.`dum2' b0.`bunch', nocons
+					loc nmiss=e(rank)<(`polynomial'+1)*2+`H'+`L'
 					if `nmiss'>0 {
 						loc note note
 						loc polynomial=`polynomial'-1
@@ -187,10 +189,12 @@
 				foreach l in b g {
 					foreach k of numlist 1/`polynomial' 0 {
 						loc newnames `newnames' /`l'`k'
+						if `estimator'==1&"`l'"=="b" loc namesest1 `namesest1' /b`k'
 					}
 				}
 				forvalues bval=1/`=`H'+`L'' {
 					loc newnames `newnames' /bunch`bval'
+					loc namesest1 `namesest1' /bunch`bval'
 					}
 
 				if `bootreps'>1 {
@@ -215,13 +219,11 @@
 						loc bnames `bnames' number_bunchers:`=`L'-`i'+1'.below
 					}
 					if `H'>0 {
-						forvalues i=1/`=`H'' {
-							loc bnames `bnames' number_bunchers:`i'.above
+							forvalues i=1/`=`H'' {
+								loc bnames `bnames' number_bunchers:`i'.above
+							}
 						}
-					}
-					
-					if `estimator'>0 {
-						loc names
+					if `estimator'>1 {
 						if `estimator'==2 {
 							if "`positiveshift'"!="nopositiveshift" loc names `names' delta:lndelta
 							else loc names `names' delta:delta
@@ -230,19 +232,18 @@
 							if "`positiveshift'"!="nopositiveshift" loc names `names' shift:lnshift
 							else loc names `names' shift:shift
 						}
-					forvalues k=1/`polynomial' {
-						loc names `names' h0:``k''
-					}
-					loc names0  `names' `bnames'
-					loc names `bnames' `names'
-					
-				} 
+						forvalues k=1/`polynomial' {
+							loc names `names' h0:``k''
+						}
+						loc names `bnames' `names'
+					} 
 				else {
 					forvalues h=0/1 {
 						forvalues k=1/`polynomial' {
 							loc names `names' h`h':``k''
 						}
 						loc names `names' h`h':_cons
+						if `estimator'==1 continue, break
 					}
 				loc names `names' `bnames'
 				}
@@ -250,7 +251,8 @@
 				}
 				
 				
-				if `estimator'!=0 { //specify NL model
+				
+				if `estimator'>1 { //specify NL model
 					
 				//Specify parameter restrictions
 				
@@ -266,9 +268,10 @@
 				loc cns (`B')*`bw'
 				if `estimator'!=2 {
 					forvalues k=1/`polynomial' {
-						if "`log'"=="" loc cns `cns' - (`cutoff'^`=`k'+1')*((1+`shift')^(`=`k'+1')-`cutoff'^`=`k'+1')*({b`k'}/`=`k'+1')
+						if "`log'"=="" loc cns `cns' - ((`cutoff'^`=`k'+1')*((1+`shift')^(`=`k'+1')-1)*({b`k'}/`=`k'+1'))
 						else loc cns `cns' - (((`cutoff'+ln(1+`shift'))^(`=`k'+1')-`cutoff'^`=`k'+1')*({b`k'}/`=`k'+1'))
 						}
+						
 					if "`log'"=="" loc b0 (`cns')/(`cutoff'*`shift')
 					else loc b0 (`cns')/ln(1+`shift')
 				}
@@ -281,7 +284,6 @@
 					}
 				loc b0 ((`cns')/(`zmax'-`cutoff'))
 				}
-				noi di 2
 				
 				********b1-bK*********
 				forvalues k=1/`polynomial' {
@@ -291,8 +293,8 @@
 				********g0-gK*********
 				forvalues k=0/`polynomial' {
 					if `estimator'==1 loc g`k' `b`k''
-					else if `estimator'==2 loc g`k' `b`k''*(1+`shift')
-					else if "`log'"=="" loc g`k' `b`k''*(1+`shift')^`=`k'+1'
+					else if `estimator'==2 loc g`k' `b`k''/(1+`shift')
+					else if "`log'"=="" loc g`k' (`b`k'')*(1+`shift')^`=`k'+1'
 					else {
 						loc g`k' `b`k''
 						if `polynomial'>`k' forvalues n=`=`k'+1'/`polynomial' {
@@ -328,15 +330,22 @@
 
 				//TESTSTRING
 				if "`test'"!="notest" {
-					if `estimator'==3&"`log'"=="log" loc shiftres (exp((_b[/g`=`polynomial'-1']-_b[/b`=`polynomial'-1'])/(`polynomial'*_b[/b`polynomial']))-1)
-					else loc shiftres (_b[/g0]/_b[/b0]-1)
-					forvalues k=0/`polynomial' {
-						if "`positiveshift'"=="nopositiveshift" loc teststr `teststr' (_b[/g`k']=`=subinstr("`g`k''","_b[/shift]","`shiftres'",.)')
-						else loc teststr `teststr' (_b[/g`k']=`=subinstr("`g`k''","exp(_b[/lnshift])","`shiftres'",.)')
+						if `estimator'==3&"`log'"=="log" loc shiftres (exp((_b[/g`=`polynomial'-1']-_b[/b`=`polynomial'-1'])/(`polynomial'*_b[/b`polynomial']))-1)
+						else loc shiftres (_b[/g0]/_b[/b0]-1)
+						forvalues k=0/`polynomial' {
+							if "`positiveshift'"=="nopositiveshift" loc teststr `teststr' (_b[/g`k']=`=subinstr("`g`k''","_b[/shift]","`shiftres'",.)')
+							else loc teststr `teststr' (_b[/g`k']=`=subinstr("`g`k''","exp(_b[/lnshift])","`shiftres'",.)')
+						}
 					}
 				}
+				else {
+					loc b0 _b[/b0]
+					if `estimator'==1&"`test'"!="notest" {
+						forvalues k=0/`polynomial' {
+							loc teststr `teststr' (_b[/b`k']=_b[g`k'])
+						}
+					}
 				}
-				else loc b0 _b[/b0]
 				
 				
 				//ESTIMATION AND INFERENCE
@@ -359,18 +368,18 @@
 							}
 							if `obs'>0 replace `y'=`obs' in `=_N'
 							else replace `y'=0 if _n>`i'
-
+							if "`zero'"=="nozero" replace `y'=. if `y'==0
 							}
 						else {
 							replace `y'=rgamma(`yorig',1) 
 							su `y'
 							replace `y'=`y'*`N'/r(sum)
 						}
-						if "`zero'"=="nozero" replace `y'=. if `y'==0
+						
 					}
 					
 					//estimate unrestricted model
-					reg `unresmodel', nocons
+					`noisily' reg `unresmodel', nocons
 					if `bootreps'==1 { //get variance for unrestricted model, perform test of model restrictions
 						varcorrect `unresmodel', `smallsample'
 						mat `Vu'=r(V)
@@ -382,12 +391,13 @@
 						mat `bu'=e(b)
 						mat `Vu'=e(V)
 						if "`test'"!="notest"&`estimator'>0 {
-							testnl `teststr'
+							noi eret di
+							`noisily' testnl `teststr'
 							loc chi2=r(chi2)
 							loc p_mod=r(p)
 							loc df=r(df)
 						}
-					if "`saveunres'"!="" est sto `saveunres'
+					if "`saveunres'"!="" est save `saveunres', replace
 					}
 					else if "`transform'"!="notransform"|`estimator'>0 { //just change names and post
 						mat `tmpb'=e(b)
@@ -398,7 +408,7 @@
 					if `s'==0 mat `bu'=e(b)
 					
 					//ESTIMATE RESTRICTED MODEL
-					if `estimator'>0 {
+					if `estimator'>1 { //with NLS
 						//find good starting values
 						if "`log'"=="" loc shiftinit=(_b[/g0]/_b[/b0])-1
 						else loc shiftinit=exp((_b[/g`=`polynomial'-1']-_b[/b`=`polynomial'-1'])/(`polynomial'*_b[/b`polynomial']))-1
@@ -413,8 +423,8 @@
 						}
 						
 						
-						//estimate restricted model
-						nl (`y'=`modstr'), init(`init')
+						//estimate restricted model W/ NLS
+						`noisily' nl (`y'=`modstr'), init(`init')
 						if `bootreps'==1 {
 							varcorrect `y', nl `smallsample'
 							
@@ -422,8 +432,19 @@
 							ereturn repost V=`V'
 							}
 						}
-						
-						
+					else if `estimator'==1 { //With OLS
+						`noisily' reg `y' `rhsvars' `cons' `bunchvars', nocons
+						mat `b'=e(b)
+						mat colnames `b'=`namesest1'
+						if `bootreps'==1 {
+							varcorrect `y' `rhsvars' `cons' `bunchvars', `smallsample'
+							mat `V'=r(V)
+							mat rownames `V'=`namesest1'
+							mat colnames `V'=`namesest1'
+							ereturn post `b' `V'
+							}
+						else ereturn post `b'
+					}
 						if "`transform'"!="notransform" { //TRANSFORM ESTIMATES
 							if `bootreps'==1 {
 								bunchcalc, estimator(`estimator') polynomial(`polynomial') cutoff(`cutoff') bw(`bw') h(`H') l(`L') b0(`b0') t0(`t0') t1(`t1') `constant' `positiveshift' `log' nlcom(`nlcom')
@@ -525,7 +546,7 @@
 				ereturn scalar lower_limit=`zL'
 				ereturn scalar upper_limit=`zH'
 				if `bootreps'>0 ereturn local cmd "polbunch"
-				ereturn local cmdline "polbunch"
+				ereturn local cmdname "polbunch"
 				ereturn local title 	"Polynomial bunching estimates"
 				ereturn local cmdline 	"polbunch `0'"
 				ereturn matrix table=`table'
