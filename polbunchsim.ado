@@ -1,5 +1,5 @@
 program polbunchsim, eclass
-	 syntax [, log reps(integer 1) obs(integer 5000) cutoff(real 1) el(real 0.4) t0(real 0.2) t1(real 0.6) bw(real 0.01) bootreps(integer 500) POLynomial(integer 1) notransform distribution(string) nopositiveshift estimator(numlist integer) btype(numlist integer) clist(string) noisily]
+	 syntax [, log reps(integer 1) obs(integer 5000) cutoff(real 1) el(real 0.4) t0(real 0.2) t1(real 0.6) bw(real 0.01) bootreps(integer 500) POLynomial(integer 1) notransform distribution(string) nopositiveshift estimator(numlist integer) btype(numlist integer) clist(string) noisily sample(string)]
 	
 	quietly {
 	if "`btype'"=="" loc btype=1
@@ -24,7 +24,7 @@ program polbunchsim, eclass
 	loc numest=`numb'*`nume'*`numc'
 	tempname b V
 	polbunchgendata z, obs(`obs') cutoff(`cutoff') el(`el') t0(`t0') t1(`t1') `log' distribution(`distribution')
-		
+	if "`sample'"!="" drop if !inrange(z,`sample')
 	foreach bt of numlist `btype'  {
 		foreach e of numlist `estimator' {
 			foreach c in `clist' {
