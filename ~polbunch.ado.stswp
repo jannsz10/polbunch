@@ -518,7 +518,7 @@
 
 				
 				//POST RESULTS
-				noi mat li `b'
+				
 				mat colnames `b'=`names'
 				if `bootreps'>=1 {
 					mat colnames `V'=`names'

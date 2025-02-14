@@ -136,7 +136,7 @@ program bunchcalc, rclass
 			mata: st_numscalar("eresp",eresp(`=`B'',`cutoff',st_matrix("`h0'"),`bw'))
 			if eresp==. loc exit=1
 			if "`log'"=="" mat `b'=`b',`=eresp/`cutoff'',eresp
-			else mat `b'=`b',`=exp(eresp+`cutoff')/exp(`cutoff')',eresp
+			else mat `b'=`b', `=exp(eresp+`cutoff')/exp(`cutoff')',eresp
 			if "`t0'"!=""&"`t1'"!="" { //elasticity
 				if "`log'"=="" mat `b'=`b',`=ln(1+ eresp/`cutoff')/(ln(1-`t0')-ln(1-`t1'))'
 				else mat `b'=`b',`=(ln(exp(`cutoff'+eresp))-`cutoff')/(ln(1-`t0')-ln(1-`t1'))'

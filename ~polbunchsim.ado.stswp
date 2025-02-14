@@ -1,7 +1,7 @@
 program polbunchsim, eclass
 	 syntax [, log reps(integer 1) obs(integer 5000) cutoff(real 1) el(real 0.4) t0(real 0.2) t1(real 0.6) bw(real 0.01) bootreps(integer 500) POLynomial(integer 1) notransform distribution(string) nopositiveshift estimator(numlist integer) btype(numlist integer) clist(string) noisily sample(string)]
 	
-	quietly {
+	 {
 	if "`btype'"=="" loc btype=1
 	if "`estimator'"=="" loc estimator=3
 
@@ -38,6 +38,7 @@ program polbunchsim, eclass
 			else if `bt'==4 polbunch z, cutoff(`cutoff') pol(`polynomial') bw(`bw') t0(`t0') t1(`t1') `log' estimator(`e') bootreps(`bootreps') nozero nobayes `c' `noisily' `transform'
 			else if `bt'==5 polbunch z, cutoff(`cutoff') pol(`polynomial') bw(`bw') t0(`t0') t1(`t1') `log' estimator(`e') bootreps(`bootreps') `c' `noisily' `transform'
 			else if `bt'==6 polbunch z, cutoff(`cutoff') pol(`polynomial') bw(`bw') t0(`t0') t1(`t1') `log' estimator(`e') bootreps(`bootreps') nozero `c' `noisily' `transform'
+			noi eret di
 			timer off 1
 		
 			timer list
